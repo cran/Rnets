@@ -1,0 +1,78 @@
+---
+title: "Rnets Vignette"
+author: "WJ Love"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{"Rnets Vignette"}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+## Introduction
+
+The `Rnets` package provides a mostly automated analysis pipeline for translating antimicrobial resistance (AMR) data from bacterial populations into network models. Representing resistance relationships as networks greatly facilitates visualization of data and allows noval analytic approaches by mapping the relationships to a network. Currently, the package is focused on mapping relationships betweeen phenotypic resistances, e.g. minimum inihibitory concentrations (MICs), but methods to incorporate genetic information into the analysis are currently in development.
+##Under the Hood
+The networks models created by this package are probabalistic graphical models (PGMs), more specifically Markov random fields (MRF). MRFs are undirected graphical models where the vertex set is defined by a set of random variables and the edge set is defined by non-zero partial correlations between variables in the dataset. Sparse MRFs of AMR data are network models of resistance relationships, referred to as 'rnets' for brevity.
+
+_Sparsity_ is a concept in network models desribing how many or how few links, or _edges_, exist between the units, or _vertices_, of the network. A network in which all possible edges exist is referred to as dense. Sparsity is an appealing characteristic because sparse networks are much easier to interpret than completely dense networks. An MRF may be made sparse by reducing trivially small partial correlations to 0. Several approaches to this problem, and we employ the graphical least absolute shrinkage and selection operator (LASSO) here using the `glasso` function from the eponymous package maintained by R. Tibshirani^[Friedman, Hastie & Tibshirani. "Sparse inverse covariance estimation with the graphical lasso." _Biostatistics_ (2007)]. This method applies an L~1~ penalty to the inverse covariance matrix to increase it's sparsity. Higher L~1~ values leads to fewer edges and a sparser network and the graph is empty when $L_1 \geq max(|\sigma_{ij}|)$, i.e., there a no edges and all the variables appear to be conditionally independent. 
+
+The analysis pipeline can be summarized as follows:
+$$\Large D_{n \times k} \underset{cor}{\rightarrow} \Sigma_{k \times k} \underset{glasso}{\rightarrow} \Theta_{k \times k} \underset{std'ize}{\rightarrow}\Omega_{k \times k} \underset{igraph}{\rightarrow}R(V, E)$$
+Where...
+
+* $D$ is the data matrix with _n_ observations (single isolates) over _k_ variables (Resistances tested).
+* $\Sigma$ is the empirical correlation/covariance matrix for the _k_ variables in _D_.
+* $\Theta$ is the penalized precision matrix.
+* $\Omega$ is the partial correlation matrix, estimated as $\omega_{ij}=\frac{-\theta_{ij}}{\sqrt{\theta_{ii} \theta_{jj}}}|i\neq j$
+* $R$ is the network defined by the two sets:
+    + The vertex set $V$, with $|V| = k$ vertices and
+    + The edge set $E$, with $|E| = m$edges. 
+
+
+## Important Functions & Methods
+
+### `Rnet()`
+The `Rnet` function is the core of the package. This function intakes a dataframe containing the AMR data, the L~1~ penalty, and other options and produces an rnet object (the specific type varies on how the "Stratify" argument is specified) that contains the processed network and associated attributes.
+
+The example dataset `NARMS_EC_DATA` is included in the package and contains a subset of AMR data from _E. coli_ isolates collected by the FDA & USDA as part of the National Antimicrobial Resistance Monitoring System^[<https://www.fda.gov/animalveterinary/safetyhealth/antimicrobialresistance/nationalantimicrobialresistancemonitoringsystem/>].
+
+```{r, echo = FALSE, results = 'hide', message = F}
+library(Rnets)
+#load(file = '..\\data\\NARMS_EC_DATA.rda')
+
+```
+
+```{r}
+
+#Define the set of antimicrobials to include in the Rnet
+ABX_LIST <- c('AMC', 'AXO', 'TIO', 'CIP', 'TET', 'STR', 'GEN', 'CHL')
+
+#Estimate the Rnet
+EC_all_Rnet <- Rnets::Rnet(Data = NARMS_EC_DATA, L1 =  0.25, V_set = ABX_LIST)
+                
+#View Results
+summary(EC_all_Rnet)
+```
+
+### `L1Selection()`
+
+Several methods have been proposed to select the 'appropriate' L~1~ penalty, represented by $\lambda$, to induce sparsity in MRFs. In general, $\lambda$ should be high enough to remove trivially small partial correlations while leaving intact stronger partial correlations that are presumbly caused by genetic associations. `L1Selection` implements the StARS method described by Liu, Roeder, and Wasserman (2010)^[Stability Approach to Regularization Selection (StARS) for High Dimensional Graphical Models. _Advances in Nerual INformation Processing Systems 23_ (2010)]. Briefly, this method estimates MRFs using multiple subsets sampled without replacement from the empirical data over a range of $\lambda$ values. Individual edges/partial correlations from the subset-derived MRFs are evaluated for stability (defined as the std. deviation of the proportion of subsets in which they appear), and a score _D_ is assigned for each tested value of $\lambda$ based on the sum of stabilities for all edges over all subsets given the respective penalty. The suggested $\lambda$ value is the lowest value for which _D_ is below some threshold, typically 0.05. The goal is to find the densest network that is also stable across most data subsets.
+
+This function defaults to a subsample size `n_b` of half the dataset, but smaller subsamples are typically appropriate. Liu, Roeder, and Wasserman suggest a n_b = 10$\sqrt{n}$
+
+```{r}
+EC_all_L1Selection <- L1Selection(
+            Data = NARMS_EC_DATA, 
+            L1_set = seq(0.05, 0.50, 0.05),
+            n_b = 1500,
+            V_set = ABX_LIST
+            )
+
+round(EC_all_L1Selection@StARS_D, 4)
+```
+
+_generic `summary` & `print` methods for `class(x) = 'rnet.L1.set'` are still in development. Currently, stability scores are accessed direct via `x@StARS_D`_ 
+
+Given these results, the suggested regularization penalty would be $\lambda$ = 0.15, since StARS_D > 0.05 at $\lambda$ = 0.10.
+
+NOTE: The resampling approach can be time consuming large datasets, i.e. datasets with many observations or many variables. 
