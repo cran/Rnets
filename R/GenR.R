@@ -9,26 +9,26 @@
 #' 
 setGeneric('.Gen_R', function(rnet.obj){
 
-	rnet.obj@Data <- rnet.obj@RawData[rnet.obj@V_set_orig]
+	rnet.obj@x <- rnet.obj@raw_data[rnet.obj@V_orig]
 	rnet.obj@L1 <- rnet.obj@L1_orig
 
-	if(!all(rnet.obj@V_set_orig%in%names(rnet.obj@Data))) stop("One or more vertex names declared in 'V_set' do not match data column names.")
+	if(!all(rnet.obj@V_orig%in%names(rnet.obj@x))) stop("One or more vertex names declared in 'vertices' do not match data column names.")
 
-	rnet.obj@V_set <- rnet.obj@V_set_orig[lapply(rnet.obj@Data, function(x) sum(!is.na(x))) > rnet.obj@n_threshold]
-	V_sorted <- sort(rnet.obj@V_set)
-	rnet.obj@Data <- rnet.obj @Data[V_sorted]
+	rnet.obj@vertices <- rnet.obj@V_orig[lapply(rnet.obj@x, function(x) sum(!is.na(x))) > rnet.obj@n_min]
+	V_sorted <- sort(rnet.obj@vertices)
+	rnet.obj@x <- rnet.obj@x[V_sorted]
 
-	if(!all(apply(rnet.obj@Data, c(1, 2), is.numeric))) stop("Non-numeric results provided in data for correlation matrix")
+	if(!all(apply(rnet.obj@x, c(1, 2), is.numeric))) stop("Non-numeric results provided in data for correlation matrix")
 
-	rnet.obj@Sigma <- Clean_Sigma(rnet.obj@Data, rnet.obj@cor_method, rnet.obj@cor_pairing)
+	rnet.obj@Sigma <- suppressWarnings(Clean_Sigma(rnet.obj@x, rnet.obj@cor_method, rnet.obj@cor_pairing))
 
-	rnet.obj@n <- t(!is.na(rnet.obj@Data))%*%!is.na(rnet.obj@Data)
-	n_list <- Sq2L(rnet.obj@n, c("V1", "V2", "n"), drop.values = NULL)
-	rnet.obj@Zeros <- list(
-		Forced = if(dim(rnet.obj@Forced_zeros)[1]!=0) rnet.obj@Forced_zeros else matrix(nrow = 0, ncol = 2, dimnames = list(NULL, c('V1', 'V2'))),
-		Invalid = data.matrix(subset(n_list, select = c(V1, V2), n < rnet.obj@n_threshold))
+	rnet.obj@n <- t(!is.na(rnet.obj@x))%*%!is.na(rnet.obj@x)
+	n_list <- Sq2Long(rnet.obj@n, c("V1", "V2", "n"), drop.values = NULL)
+	rnet.obj@zeros <- list(
+		Forced = if(dim(rnet.obj@forced_zeros)[1]!=0) rnet.obj@forced_zeros else matrix(nrow = 0, ncol = 2, dimnames = list(NULL, c('V1', 'V2'))),
+		Invalid = data.matrix(subset(n_list, select = c(V1, V2), n < rnet.obj@n_min))
 		)
-	zero_pairs <- unique(rbind(rnet.obj@Zeros$Forced, rnet.obj@Zeros$Invalid))
+	zero_pairs <- unique(rbind(rnet.obj@zeros$Forced, rnet.obj@zeros$Invalid))
 	zero_indices <- data.matrix(data.frame(V1 = match(zero_pairs[,1], V_sorted), V2 = match(zero_pairs[,2], V_sorted)))
 
 	if(dim(zero_pairs)[1]==0) 	glasso_result <- glasso(rnet.obj@Sigma, rnet.obj@L1) else glasso_result <- glasso(rnet.obj@Sigma, rnet.obj@L1, zero = zero_indices)
@@ -46,7 +46,7 @@ setGeneric('.Gen_R', function(rnet.obj){
 	                               as_edgelist(rnet.obj@R), 
 	                               stringsAsFactors = F
 	                               ), 
-	                             y = Sq2L(
+	                             y = Sq2Long(
 	                               rnet.obj@Omega, 
 	                               c("V1", "V2", "omega"), 
 	                               c(T, F, F),
@@ -57,9 +57,9 @@ setGeneric('.Gen_R', function(rnet.obj){
 	
 	rnet.obj@E_metadata <- edge_attr_names(rnet.obj@R)
 	
-  if(is.null(rnet.obj@Layout_master)) rnet.obj@Layout <- layout_with_fr(rnet.obj@R)
+  if(is.null(rnet.obj@layout_master)) rnet.obj@layout <- layout_with_fr(rnet.obj@R)
 	
-	rnet.obj@V_omitted <- rnet.obj@V_set_orig[!rnet.obj@V_set_orig%in%rnet.obj@V_set]
+	rnet.obj@V_omitted <- rnet.obj@V_orig[!rnet.obj@V_orig%in%rnet.obj@vertices]
 
 	return(rnet.obj)
 })
@@ -70,29 +70,29 @@ setGeneric('.Gen_R', function(rnet.obj){
 
 #' 
 setMethod('.Gen_R',
-	'rnetStrata',
+	'rnetSubset',
 	function (rnet.obj) {
-		rnet.obj@Data <- rnet.obj@RawData[eval(rnet.obj@Strata_def, rnet.obj@RawData),rnet.obj@V_set_orig]
+		rnet.obj@x <- rnet.obj@raw_data[eval(rnet.obj@subset, rnet.obj@raw_data),rnet.obj@V_orig]
 		rnet.obj@L1 <- rnet.obj@L1_orig
 
-		if(!all(rnet.obj@V_set_orig%in%names(rnet.obj@Data))) stop("One or more vertex names declared in 'V_set' do not match data column names.")
+		if(!all(rnet.obj@V_orig%in%names(rnet.obj@x))) stop("One or more vertex names declared in 'vertices' do not match data column names.")
 
-		rnet.obj@V_set <- rnet.obj@V_set_orig[lapply(rnet.obj@Data, function(x) sum(!is.na(x))) > rnet.obj@n_threshold]
-		V_sorted <- sort(rnet.obj@V_set)
-		rnet.obj@Data <- rnet.obj@Data[V_sorted]
+		rnet.obj@vertices <- rnet.obj@V_orig[lapply(rnet.obj@x, function(x) sum(!is.na(x))) > rnet.obj@n_min]
+		V_sorted <- sort(rnet.obj@vertices)
+		rnet.obj@x <- rnet.obj@x[V_sorted]
 
-		if(!all(apply(rnet.obj@Data, c(1, 2), is.numeric))) stop("Non-numeric results provided in data for correlation matrix")
+		if(!all(apply(rnet.obj@x, c(1, 2), is.numeric))) stop("Non-numeric results provided in data for correlation matrix")
 
-		rnet.obj@Sigma <- Clean_Sigma(rnet.obj@Data, rnet.obj@cor_method, rnet.obj@cor_pairing)
+		rnet.obj@Sigma <- Clean_Sigma(rnet.obj@x, rnet.obj@cor_method, rnet.obj@cor_pairing)
 
-		rnet.obj@n <- t(!is.na(rnet.obj@Data))%*%!is.na(rnet.obj@Data)
-		n_list <- Sq2L(rnet.obj@n, c("V1", "V2", "n"), drop.values = NULL)
+		rnet.obj@n <- t(!is.na(rnet.obj@x))%*%!is.na(rnet.obj@x)
+		n_list <- Sq2Long(rnet.obj@n, c("V1", "V2", "n"), drop.values = NULL)
 
-		rnet.obj@Zeros <- list(
-			Forced = if(dim(rnet.obj@Forced_zeros)[1]!=0) rnet.obj@Forced_zeros else matrix(nrow = 0, ncol = 2, dimnames = list(NULL, c('V1', 'V2'))),
-			Invalid = data.matrix(subset(n_list, select = c('V1', 'V2'), n_list$n < rnet.obj@n_threshold))
+		rnet.obj@zeros <- list(
+			Forced = if(dim(rnet.obj@forced_zeros)[1]!=0) rnet.obj@forced_zeros else matrix(nrow = 0, ncol = 2, dimnames = list(NULL, c('V1', 'V2'))),
+			Invalid = data.matrix(subset(n_list, select = c('V1', 'V2'), n_list$n < rnet.obj@n_min))
 			)
-		zero_pairs <- unique(rbind(rnet.obj@Zeros$Forced, rnet.obj@Zeros$Invalid))
+		zero_pairs <- unique(rbind(rnet.obj@zeros$Forced, rnet.obj@zeros$Invalid))
 		zero_indices <- data.matrix(data.frame(V1 = match(zero_pairs[,1], V_sorted), V2 = match(zero_pairs[,2], V_sorted)))
 
 
@@ -112,7 +112,7 @@ setMethod('.Gen_R',
 		    as_edgelist(rnet.obj@R), 
 		    stringsAsFactors = F
 		  ), 
-		  y = Sq2L(
+		  y = Sq2Long(
 		    rnet.obj@Omega, 
 		    c("V1", "V2", "omega"), 
 		    c(T, F, F),
@@ -121,9 +121,9 @@ setMethod('.Gen_R',
 		  by = c('V1', 'V2')
 		)$omega
 		rnet.obj@A <- rnet.obj@Omega!=0		
-		if(is.null(rnet.obj@Layout_master)) rnet.obj@Layout <- layout_with_fr(rnet.obj@R)
+		if(is.null(rnet.obj@layout_master)) rnet.obj@layout <- layout_with_fr(rnet.obj@R)
 		
-		rnet.obj@V_omitted <- rnet.obj@V_set_orig[!rnet.obj@V_set_orig%in%rnet.obj@V_set]
+		rnet.obj@V_omitted <- rnet.obj@V_orig[!rnet.obj@V_orig%in%rnet.obj@vertices]
 
 		return(rnet.obj)
 	})

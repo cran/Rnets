@@ -12,7 +12,7 @@
 
 <meta name="author" content="WJ Love" />
 
-<meta name="date" content="2017-12-12" />
+<meta name="date" content="2018-09-10" />
 
 <title>Rnets Vignette</title>
 
@@ -70,14 +70,18 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 
 <h1 class="title toc-ignore">Rnets Vignette</h1>
 <h4 class="author"><em>WJ Love</em></h4>
-<h4 class="date"><em>2017-12-12</em></h4>
+<h4 class="date"><em>2018-09-10</em></h4>
 
 
 
 <div id="introduction" class="section level2">
 <h2>Introduction</h2>
-<p>The <code>Rnets</code> package provides a mostly automated analysis pipeline for translating antimicrobial resistance (AMR) data from bacterial populations into network models. Representing resistance relationships as networks greatly facilitates visualization of data and allows noval analytic approaches by mapping the relationships to a network. Currently, the package is focused on mapping relationships betweeen phenotypic resistances, e.g. minimum inihibitory concentrations (MICs), but methods to incorporate genetic information into the analysis are currently in development. ##Under the Hood The networks models created by this package are probabalistic graphical models (PGMs), more specifically Markov random fields (MRF). MRFs are undirected graphical models where the vertex set is defined by a set of random variables and the edge set is defined by non-zero partial correlations between variables in the dataset. Sparse MRFs of AMR data are network models of resistance relationships, referred to as ‘rnets’ for brevity.</p>
-<p><em>Sparsity</em> is a concept in network models desribing how many or how few links, or <em>edges</em>, exist between the units, or <em>vertices</em>, of the network. A network in which all possible edges exist is referred to as dense. Sparsity is an appealing characteristic because sparse networks are much easier to interpret than completely dense networks. An MRF may be made sparse by reducing trivially small partial correlations to 0. Several approaches to this problem, and we employ the graphical least absolute shrinkage and selection operator (LASSO) here using the <code>glasso</code> function from the eponymous package maintained by R. Tibshirani<a href="#fn1" class="footnoteRef" id="fnref1"><sup>1</sup></a>. This method applies an L<sub>1</sub> penalty to the inverse covariance matrix to increase it’s sparsity. Higher L<sub>1</sub> values leads to fewer edges and a sparser network and the graph is empty when <span class="math inline">\(L_1 \geq max(|\sigma_{ij}|)\)</span>, i.e., there a no edges and all the variables appear to be conditionally independent.</p>
+<p>This package provides a mostly automated analysis pipeline for translating antimicrobial resistance (AMR) data from bacterial populations into network models. Representing resistance relationships as networks facilitates visualization and understand of this multivariate data and opens up a novel set of analytic approaches. The focus of the package is to leverage existing and accessible phenotypic resistance data from clinical antimicrobial susceptibility testing (AST) to identify correlated resistances. Correlations with other factors, e.g., patient characteristics and additional isolate details, can also be included in the networks.</p>
+</div>
+<div id="networks-and-sparsity" class="section level2">
+<h2>Networks and Sparsity</h2>
+<p>The networks models created by this package are probabalistic graphical models (PGMs), more specifically Markov random fields (MRF). MRFs are undirected graphical models where the vertex set is defined by a set of random variables and the edge set is defined by non-zero partial correlations between variables in the dataset. Sparse MRFs of AMR data are resistance relationship network models, which is shorted to ‘R-nets’. The R-nets represent the estimated correlations in resistances across the population from which the AST results were drawn.</p>
+<p><em>Sparsity</em> is a concept in network models desribing how many or how few links, or <em>edges</em>, exist between the units, or <em>vertices</em>, of the network. A network in which all possible edges exist is referred to as dense. Sparsity is an appealing characteristic because sparse networks are much easier to interpret than completely dense networks. An MRF may be made sparse by reducing trivially small partial correlations to 0. Several approaches to this problem have been described, and we employ here the graphical least absolute shrinkage and selection operator (gLASSO). This method applies an L<sub>1</sub> penalty when estimating the inverse covariance matrix (also refered to as the ‘precision matrix’) to increase it’s sparsity. Higher L<sub>1</sub> values leads to fewer edges and a sparser network and the graph is empty when <span class="math inline">\(L_1 \geq max(|\sigma_{ij}|)\)</span>, i.e., there a no edges and all the variables appear to be conditionally independent.</p>
 <p>The analysis pipeline can be summarized as follows: <span class="math display">\[\Large D_{n \times k} \underset{cor}{\rightarrow} \Sigma_{k \times k} \underset{glasso}{\rightarrow} \Theta_{k \times k} \underset{std'ize}{\rightarrow}\Omega_{k \times k} \underset{igraph}{\rightarrow}R(V, E)\]</span> Where…</p>
 <ul>
 <li><span class="math inline">\(D\)</span> is the data matrix with <em>n</em> observations (single isolates) over <em>k</em> variables (Resistances tested).</li>
@@ -90,64 +94,403 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 <li>The edge set <span class="math inline">\(E\)</span>, with <span class="math inline">\(|E| = m\)</span>edges.</li>
 </ul></li>
 </ul>
+<p>The MRF can be thought of as a convenient way of visualizing the penalized <span class="math inline">\(\Omega\)</span>. The estimated structure is conditional on the selected L<sub>1</sub>. <code>L1Selection()</code> discussed below uses a resampling and stability method assist in selecting an L<sub>1</sub> penalty objectively.</p>
+<p>In an R-net, phenotypical resistances and other cofactors are represented as vertices, i.e., the observed MICs and cofactors are the random variables in the dataset represented by the R-net. The edges in an R-net represent resistances (or other cofactors) that have non-zero correlations after accounting for all the other covariances in the data. The significance of the non-zero partial correlations are that selecting for one resistance may indirectly select for the correlated resistance. For example, if AMP–TET edge is found to have <span class="math inline">\(\omega \geq 0\)</span> for a population of bacteria, it indicates that environments that select for increased AMP, e.g., therapeutic use of ampicillin, may indirectly select for increased TET as well.</p>
 </div>
-<div id="important-functions-methods" class="section level2">
-<h2>Important Functions &amp; Methods</h2>
-<div id="rnet" class="section level3">
-<h3><code>Rnet()</code></h3>
-<p>The <code>Rnet</code> function is the core of the package. This function intakes a dataframe containing the AMR data, the L<sub>1</sub> penalty, and other options and produces an rnet object (the specific type varies on how the “Stratify” argument is specified) that contains the processed network and associated attributes.</p>
-<p>The example dataset <code>NARMS_EC_DATA</code> is included in the package and contains a subset of AMR data from <em>E. coli</em> isolates collected by the FDA &amp; USDA as part of the National Antimicrobial Resistance Monitoring System<a href="#fn2" class="footnoteRef" id="fnref2"><sup>2</sup></a>.</p>
-<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co">#Define the set of antimicrobials to include in the Rnet</span>
-ABX_LIST &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="st">'AMC'</span>, <span class="st">'AXO'</span>, <span class="st">'TIO'</span>, <span class="st">'CIP'</span>, <span class="st">'TET'</span>, <span class="st">'STR'</span>, <span class="st">'GEN'</span>, <span class="st">'CHL'</span>)
-
-<span class="co">#Estimate the Rnet</span>
-EC_all_Rnet &lt;-<span class="st"> </span>Rnets::<span class="kw">Rnet</span>(<span class="dt">Data =</span> NARMS_EC_DATA, <span class="dt">L1 =</span>  <span class="fl">0.25</span>, <span class="dt">V_set =</span> ABX_LIST)
+<div id="under-the-hood" class="section level2">
+<h2>Under the hood</h2>
+<p><code>Rnets</code> relies heavily on the <code>glasso</code> and <code>igraph</code> packages. <code>glasso</code>, maintained by R. Tibshirani<a href="#fn1" class="footnoteRef" id="fnref1"><sup>1</sup></a>, provides the eponymous function for estimating sparse precision matrices. <code>igraph</code> is one of the most popular libraries on CRAN for working with network data and was developed by Gabor Csardi and Tamas Nepusz<a href="#fn2" class="footnoteRef" id="fnref2"><sup>2</sup></a>. <code>Rnets</code> makes extensive use of the resources in <code>igraph</code> to store, analyze, and manipulate the estimated MRFs.</p>
+</div>
+<div id="using-the-rnets-package" class="section level2">
+<h2>Using the Rnets package</h2>
+<p>This package is designed to intake processed AST results and return usable networks for further analysis. The work flow in R can be generalized</p>
+<ol style="list-style-type: decimal">
+<li>Import and process AMR data (This is outside the scope )</li>
+<li>Use <code>L1selection()</code> or another method to select appropriate penalty</li>
+<li>Use <code>Rnet()</code> to estimate the MRF structures</li>
+</ol>
+<ul>
+<li>Assign metadata to rnet object as needed</li>
+</ul>
+<ol start="4" style="list-style-type: decimal">
+<li>Visualize and analyze the R-nets</li>
+</ol>
+<div id="example-data" class="section level4">
+<h4>Example data</h4>
+<p>The example dataset <code>NARMS_EC_DATA</code> is included in the package and contains a subset of AMR data from <em>E. coli</em> isolates collected by the FDA &amp; USDA as part of the National Antimicrobial Resistance Monitoring System<a href="#fn3" class="footnoteRef" id="fnref3"><sup>3</sup></a>.</p>
+</div>
+<div id="notes-on-data-processing-and-analysis" class="section level4">
+<h4>Notes on data processing and analysis</h4>
+<p>Due to the variety of storage formats for AMR data, data preparation is beyond the scope of <code>Rnets</code>. Typically, MIC results from AST will be reported with an inequality sign and a numeric value, e.g., <code>= 16</code> or <code>&gt; 4</code>. The functions in <code>Rnets</code> require only numeric values, so some degree of editing will often be required to make AST results usable. For entries preceeded by <code>=</code>, <code>&lt;</code>, or <code>&lt;=</code>, we suggest simply trimming the sign. However, <code>&gt;</code> and <code>&gt;=</code> indicate that the MIC was in excess of highest tested concentation. Therefore, an MIC reported as <code>&gt; 4</code> represents a greater resistance than <code>= 4</code>. In these cases, we suggest doubling MIC values reported as <code>&gt;</code> or <code>&gt;=</code>, e.g. <code>&gt; 4</code> is transformed to <code>8</code> for analysis. Doubling the MIC aims to represent the higher resistance as being in the next higher two-fold concentration that was not tested.</p>
+<p>We suggest using the non-parametric estimators for correlation such as Kendall’s <span class="math inline">\(\tau_b\)</span> or Spearman’s <span class="math inline">\(\rho\)</span> to estimate <span class="math inline">\(\Sigma\)</span> instead of Pearson’s method. The gLASSO method was orignally described for Gaussian data, but MICs rarely conform to a normal distribution. Therefore using Pearson’s method, which assumes Gaussianity, to estimate <span class="math inline">\(\Sigma\)</span> may result in biased results. The non-parametric rank-based estimators have been shown to produce less biased with gLASSO when the underlying data is not Gaussian. The user can choose any of the three methods to estimate <span class="math inline">\(\Sigma\)</span>, but <code>Rnet()</code> defaults to Spearman’s (<code>Rnet(..., cor_method = 's')</code>) and Kendall’s <span class="math inline">\(\tau_b\)</span> (<code>Rnet(..., cor_method = 'k')</code>) is suggested when some of the variables are binomial. When parametric tests are needed, we suggest using a <code>log2(MIC)</code> transformation to reduce skewness.</p>
+</div>
+<div id="penalty-selection" class="section level3">
+<h3>Penalty Selection</h3>
+<p>Several methods have been proposed to select the ‘appropriate’ L<sub>1</sub> penalty, represented by <span class="math inline">\(\lambda\)</span>, to induce sparsity in MRFs. In general, <span class="math inline">\(\lambda\)</span> should be high enough to remove trivially small partial correlations while leaving intact stronger partial correlations that are presumbly caused by genetic associations. <code>L1Selection</code> implements the StARS method described by Liu, Roeder, and Wasserman (2010)<a href="#fn4" class="footnoteRef" id="fnref4"><sup>4</sup></a>. Briefly, this method estimates MRFs using multiple subsets sampled without replacement from the empirical data over a range of <span class="math inline">\(\lambda\)</span> values. Individual edges/partial correlations from the subset-derived MRFs are evaluated for stability (defined as the std. deviation of the proportion of subsets in which they appear), and a score <em>D</em> is assigned for each tested value of <span class="math inline">\(\lambda\)</span> based on the sum of stabilities for all edges over all subsets given the respective penalty. The suggested <span class="math inline">\(\lambda\)</span> value is the lowest value for which <em>D</em> is below some threshold, typically 0.05. The goal is to find the densest network that is also stable across most data subsets.</p>
+<p><code>L1Selection</code> defaults to a subsample size <code>n_b</code> of half the dataset, but smaller subsamples are typically appropriate. Liu, Roeder, and Wasserman suggest <span class="math inline">\(n_b = 10\sqrt{n}\)</span>. <code>n_b</code> can be set to a proportion of the sample size by setting <code>n_b &lt; 1</code> or as a set number of individuals with <code>1 &lt; n_b &lt; n</code>.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">EC_all_L1Selection &lt;-<span class="st"> </span><span class="kw">L1Selection</span>(
+            <span class="dt">x =</span> NARMS_EC_DATA, 
+            <span class="dt">L1_values =</span> <span class="kw">seq</span>(<span class="fl">0.05</span>, <span class="fl">0.45</span>, <span class="fl">0.05</span>),
+            <span class="dt">n_b =</span> <span class="dv">1500</span>,
+            <span class="dt">vert =</span> ABX_LIST,
+            <span class="dt">verbose =</span> F
+            )</code></pre></div>
+<pre><code>## 
+## L1Selection completed 900 loops over 100 subsets. (32s elapsed).</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">summary</span>(EC_all_L1Selection)</code></pre></div>
+<pre><code>## 
+## Stability Approach for Regularization Selection (StARS) results
+## 
+## D_b by L1
+##   0.05    0.1   0.15    0.2   0.25    0.3   0.35    0.4   0.45 
+## 0.2526 0.1058 0.0548 0.0522 0.0285 0.0068 0.0088 0.0147 0.0195 
+## 
+## Suggested Penalty: 0.25 
+## (Minimum penalty that produced D &lt; 0.05 for penalties &gt; L1_max(D) )
+## 
+## 
+## Presences of Edges
+##           E   0.05    0.1   0.15    0.2   0.25    0.3   0.35    0.4   0.45
+## 1  AMC--AXO   100%   100%   100%   100%   100%   100%   100%   100%   100%
+## 2  AMC--AZI    75%    58%    39%    17%     5%     2%                     
+## 3  AMC--CIP    29%     4%                                                 
+## 4  AMC--GEN    52%     5%                                                 
+## 5  AMC--TET   100%    94%    28%                                          
+## 6  AMC--TIO   100%   100%   100%   100%   100%   100%   100%   100%   100%
+## 7  AXO--AZI    74%    15%                                                 
+## 8  AXO--CHL    85%                                                        
+## 9  AXO--CIP    55%    11%                                                 
+## 10 AXO--STR     5%                                                        
+## 11 AXO--TIO   100%   100%   100%   100%   100%   100%   100%   100%   100%
+## 12 AZI--CHL   100%   100%   100%   100%   100%    96%    82%    43%    15%
+## 13 AZI--CIP    43%    17%     2%                                          
+## 14 AZI--GEN    75%    35%    15%     4%                                   
+## 15 AZI--STR    42%    13%     2%                                          
+## 16 AZI--TET    39%     8%     2%                                          
+## 17 AZI--TIO    95%    90%    74%    53%    24%     7%     1%              
+## 18 CHL--CIP    80%    23%     1%                                          
+## 19 CHL--GEN    36%     2%                                                 
+## 20 CHL--TIO   100%   100%    99%    82%    11%                            
+## 21 CIP--TET    46%     1%                                                 
+## 22 GEN--STR   100%   100%   100%   100%   100%   100%   100%    98%    34%
+## 23 GEN--TET   100%   100%    91%    38%     2%                            
+## 24 STR--TET   100%   100%   100%    85%    21%                            
+## 25 TET--TIO    33%    10%     1%                                          
+## 26 AMC--CHL    55%    30%     6%                                          
+## 27 AXO--GEN    30%                                                        
+## 28 CHL--STR    73%     7%                                                 
+## 29 CHL--TET    59%     3%                                                 
+## 30 CIP--STR    17%                                                        
+## 31 CIP--TIO    41%     5%                                                 
+## 32 AXO--TET     9%                                                        
+## 33 AMC--STR     4%                                                        
+## 34 CIP--GEN     4%                                                        
+## 35 STR--TIO     1%                                                        
+## 36 GEN--TIO     2%                                                        
+## 
+##   Max(|E|)
+##                 36     27     18     11     10      7      6      5      5</code></pre>
+<p>Given these results, the suggested regularization penalty would be <span class="math inline">\(\lambda\)</span> = 0.15, since StARS_D &gt; 0.05 at <span class="math inline">\(\lambda\)</span> = 0.10.</p>
+<p>NOTE: The resampling approach can be time consuming large datasets, i.e. datasets with many observations or many variables.</p>
+</div>
+</div>
+<div id="network-estimation" class="section level2">
+<h2>Network Estimation</h2>
+<p><code>Rnet()</code> is the core function of this package. This function intakes a data.frame containing the AMR data, the L<sub>1</sub> penalty, and other options and produces one of several object classes containing the processed network and associated attributes (the specific class is determined by the specification of the option <code>subset</code> argument).</p>
+<div id="basic-rnets" class="section level4">
+<h4>Basic Rnets</h4>
+<p>The simplest way to use <code>Rnet()</code> is to not specify the optional argument <code>subset</code>, in which case a single MRF is estimateed using all rows of <code>x</code>. This creates an S4 object of class <code>rnetBasic</code>.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co">#Estimate the Rnet</span>
+EC_all_Rnet &lt;-<span class="st"> </span><span class="kw">Rnet</span>(<span class="dt">x =</span> NARMS_EC_DATA, <span class="dt">L1 =</span>  <span class="fl">0.15</span>, <span class="dt">vert =</span> ABX_LIST)
                 
 <span class="co">#View Results</span>
 <span class="kw">summary</span>(EC_all_Rnet)</code></pre></div>
 <pre><code>## 
 ## Basic R-net 
 ##  
-##  Sample: 14418 isolates, 8 vertices 
+##  Sample: 14418 isolates, 9 vertices 
 ##  
-##      L1: 0.25 
-##   Edges: 4 
-## Density: 14.3 % 
+##      L1: 0.15 
+##   Edges: 9 
+## Density: 25 % 
+## 
+## Vertex set: AMC AXO TIO CIP TET STR GEN CHL AZI 
+##  
+##   Edge set: 
+##    V1  V2 Omega
+## 1 AMC AXO 0.253
+## 2 AMC TIO 0.296
+## 3 AXO TIO 0.281
+## 4 AZI CHL 0.214
+## 5 AZI TIO 0.040
+## 6 CHL TIO 0.046
+## 7 GEN STR 0.249
+## 8 GEN TET 0.027
+## 9 STR TET 0.060</code></pre>
+</div>
+<div id="subset-rnets" class="section level4">
+<h4>Subset Rnets</h4>
+<p>Seperate subpopulations in the data may have different partial correlation structures, in which case an Rnet should be estimated using only observations from that subpopulation. To estimate the network for a single subpopulation, the optional argument <code>subset</code> should be defined as an expression which describes the subpopulation. For example, to create an Rnet for the isolates from 2008, <code>Rnet(..., subset = expression(Year == 2008))</code>. When <code>subset</code> is an expression, <code>Rnet()</code> returns an <code>rnetSubset</code> object.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">EC_2008_Rnet &lt;-<span class="st"> </span><span class="kw">Rnet</span>(<span class="dt">x =</span> NARMS_EC_DATA, <span class="dt">L1 =</span>  <span class="fl">0.15</span>, <span class="dt">vert =</span> ABX_LIST, <span class="dt">subset =</span> <span class="kw">expression</span> (Year <span class="op">==</span><span class="st"> </span><span class="dv">2008</span>))
+
+<span class="kw">summary</span>(EC_2008_Rnet)</code></pre></div>
+<pre><code>## 
+## R-net (subset data) 
+##  
+##  Sample: 1292 isolates, 8 vertices (1 vertex omitted)
+##  
+##      L1: 0.15 
+##   Edges: 7 
+## Density: 25 % 
+## 
+## Rnet conditioned on Year == 2008 
 ## 
 ## Vertex set: AMC AXO TIO CIP TET STR GEN CHL 
 ##  
-##   Edge Set: 
+##   Edge set: 
 ##    V1  V2 Omega
-## 1 AMC AXO 0.195
-## 2 AMC TIO 0.230
-## 3 AXO TIO 0.218
-## 4 GEN STR 0.151</code></pre>
+## 1 AMC AXO 0.263
+## 2 AMC TIO 0.342
+## 3 AXO TIO 0.295
+## 4 CHL TIO 0.074
+## 5 GEN STR 0.349
+## 6 GEN TET 0.069
+## 7 STR TET 0.106
+## 
+## Omitted Vertices: AZI</code></pre>
 </div>
-<div id="l1selection" class="section level3">
-<h3><code>L1Selection()</code></h3>
-<p>Several methods have been proposed to select the ‘appropriate’ L<sub>1</sub> penalty, represented by <span class="math inline">\(\lambda\)</span>, to induce sparsity in MRFs. In general, <span class="math inline">\(\lambda\)</span> should be high enough to remove trivially small partial correlations while leaving intact stronger partial correlations that are presumbly caused by genetic associations. <code>L1Selection</code> implements the StARS method described by Liu, Roeder, and Wasserman (2010)<a href="#fn3" class="footnoteRef" id="fnref3"><sup>3</sup></a>. Briefly, this method estimates MRFs using multiple subsets sampled without replacement from the empirical data over a range of <span class="math inline">\(\lambda\)</span> values. Individual edges/partial correlations from the subset-derived MRFs are evaluated for stability (defined as the std. deviation of the proportion of subsets in which they appear), and a score <em>D</em> is assigned for each tested value of <span class="math inline">\(\lambda\)</span> based on the sum of stabilities for all edges over all subsets given the respective penalty. The suggested <span class="math inline">\(\lambda\)</span> value is the lowest value for which <em>D</em> is below some threshold, typically 0.05. The goal is to find the densest network that is also stable across most data subsets.</p>
-<p>This function defaults to a subsample size <code>n_b</code> of half the dataset, but smaller subsamples are typically appropriate. Liu, Roeder, and Wasserman suggest a n_b = 10<span class="math inline">\(\sqrt{n}\)</span></p>
-<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">EC_all_L1Selection &lt;-<span class="st"> </span><span class="kw">L1Selection</span>(
-            <span class="dt">Data =</span> NARMS_EC_DATA, 
-            <span class="dt">L1_set =</span> <span class="kw">seq</span>(<span class="fl">0.05</span>, <span class="fl">0.50</span>, <span class="fl">0.05</span>),
-            <span class="dt">n_b =</span> <span class="dv">1500</span>,
-            <span class="dt">V_set =</span> ABX_LIST
-            )</code></pre></div>
-<pre><code>## [1] &quot;L1Selection completed 1001 loops over 100 subsets in 183.76 seconds&quot;</code></pre>
-<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">round</span>(EC_all_L1Selection@StARS_D, <span class="dv">4</span>)</code></pre></div>
-<pre><code>##   0.05    0.1   0.15    0.2   0.25    0.3   0.35    0.4   0.45    0.5 
-## 0.1989 0.0658 0.0250 0.0367 0.0147 0.0000 0.0000 0.0014 0.0110 0.0000</code></pre>
-<p><em>generic <code>summary</code> &amp; <code>print</code> methods for <code>class(x) = 'rnet.L1.set'</code> are still in development. Currently, stability scores are accessed direct via <code>x@StARS_D</code></em></p>
-<p>Given these results, the suggested regularization penalty would be <span class="math inline">\(\lambda\)</span> = 0.15, since StARS_D &gt; 0.05 at <span class="math inline">\(\lambda\)</span> = 0.10.</p>
-<p>NOTE: The resampling approach can be time consuming large datasets, i.e. datasets with many observations or many variables.</p>
+<div id="stratified-rnets" class="section level4">
+<h4>Stratified Rnets</h4>
+<p>It is possible to create multiple R-nets with a single function call. To do so, the <code>subset</code> argument can be defined as a character string that matches a value of <code>names(x)</code> (<code>Rnet(x, ..., subset = 'column_name'</code>). In this case <code>Rnet()</code> will estimate a seperate Rnet for each unique level of <code>x$column_name</code>, and will return an object of class <code>rnetStrata</code>.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">EC_byYear_Rnet &lt;-<span class="st"> </span><span class="kw">Rnet</span>(<span class="dt">x =</span> NARMS_EC_DATA, <span class="dt">L1 =</span>  <span class="fl">0.15</span>, <span class="dt">vert =</span> ABX_LIST, <span class="dt">subset =</span> <span class="st">'Year'</span>)
+
+<span class="kw">summary</span>(EC_byYear_Rnet)</code></pre></div>
+<pre><code>## 
+##    Stratfied R-net 
+##  
+##  Stratified by: Year 
+##     L1 Penalty: 0.15 
+##  
+## Strata Summary:
+##           2004  2005  2006  2007  2008  2009  2010  2011  2012
+## Total n   2097  2625  1775  1809  1292  1191  1298   955  1376
+## Vertices     8     8     8     8     8     8     8     9     9
+## Edges        6     7     7     8     7     7     6     7    12
+## 
+## 
+## Edges:
+##           2004   2005   2006   2007   2008   2009   2010   2011   2012 
+## AMC--AXO  0.228  0.232  0.292  0.239  0.263  0.258  0.244  0.247  0.203
+## AMC--TIO  0.285  0.301  0.290  0.341  0.342  0.349  0.309  0.333  0.331
+## AXO--TIO  0.261  0.300  0.322  0.258  0.295  0.281  0.276  0.265  0.237
+## CHL--TIO  0.080  0.030  0.069  0.125  0.074  0.054  0.047         0.072
+## GEN--STR  0.262  0.270  0.196  0.262  0.349  0.253  0.209  0.259  0.283
+## STR--TET  0.053  0.069  0.060  0.033  0.106  0.065         0.051  0.073
+## GEN--TET         0.001  0.056  0.048  0.069  0.055  0.042         0.004
+## AMC--TET                       0.002                              0.036
+## AZI--CHL &lt;NA&gt;   &lt;NA&gt;   &lt;NA&gt;   &lt;NA&gt;   &lt;NA&gt;   &lt;NA&gt;   &lt;NA&gt;    0.211  0.219
+## AZI--TIO &lt;NA&gt;   &lt;NA&gt;   &lt;NA&gt;   &lt;NA&gt;   &lt;NA&gt;   &lt;NA&gt;   &lt;NA&gt;    0.006  0.054
+## AMC--AZI &lt;NA&gt;   &lt;NA&gt;   &lt;NA&gt;   &lt;NA&gt;   &lt;NA&gt;   &lt;NA&gt;   &lt;NA&gt;           0.022
+## AMC--CHL                                                          0.006
+## 
+## 
+## Note: The &quot;Total n&quot; row in the summary refers to the size of dataset. 
+##   The number observations used to estimate partial correlations may vary by edge within each stratum. 
+##   Stratum-sepcific details can be displayed by calling: summary(rnet.obj@R_set[[1]])</code></pre>
+</div>
+</div>
+<div id="rnet-objects" class="section level2">
+<h2>Rnet objects</h2>
+<p>The results of <code>Rnet()</code>, in addition to the input arguments are stored in the S4 classes <code>rnetBasic</code>, <code>rnetSubset</code>, and <code>rnetStrata</code>. All three output classes inherit from <code>rnetInput</code>, though the user should have reason to interact with this class. The output class returned is determined by the optional <code>subset</code> arugment as discussed above. A complete accounting of the objects’ slots are provided in the help files, but several particularly useful slots for each of the classes are described below.</p>
+<div id="rnetbasic" class="section level4">
+<h4>rnetBasic</h4>
+<p>The slot <code>rnetbasic.obj@Omega</code> contains the estimated penalized partial correlation matrix, <span class="math inline">\(\Omega\)</span>. This can be used as a weighted adjacency matrix.</p>
+<p>The slot <code>rnetbasic.obj@R</code> contains the <code>igraph</code> object representing the estimated MRFs. This slot can be accessed and manipulated like any other <code>igraph</code> object:</p>
+<ul>
+<li><code>igraph::ecount(rnetbasic.obj@R)</code></li>
+<li><code>igraph::set_vertex_attr(graph = rnetbasic.obj@R, name = 'vertex.color', value = 'red')</code></li>
+<li><code>plot.igraph(x = rnetbasic.obj@R)</code></li>
+</ul>
+<p>The slot <code>rnetbasic.obj@layout</code> contains a matrix of x &amp; y coordinates for placing the vertices for <code>rnetbasic.obj@R</code>. Called by the <code>plot(x)</code> generic method when <code>class(x) = &quot;rnetBasic&quot;</code>, but is not used by <code>plot.igraph()</code>.</p>
+</div>
+<div id="rnetsubset" class="section level4">
+<h4>rnetSubset</h4>
+<p>This class inherits from <code>rnetBasic</code> and gains the <code>@subset</code> slot, which contains the expression used to define the subset.</p>
+</div>
+<div id="rnetstrata" class="section level4">
+<h4>rnetStrata</h4>
+<p><code>rnetStrata</code> does not inherit from either of the two other output classes.</p>
+<p>The slot <code>rnetstrata.obj@stratify_by</code> contains the string matching column in <code>x</code> used for stratification.</p>
+<p>The slot <code>rnetstrata.obj@R_set</code> is a list of <code>rnetSubset</code> objects. The names of the list’s elements match the value defining the stratum, i.e., <code>names(rnetstrata.obj@R_set) &lt;- unique(x$stratify_by)</code>. A specific <code>rnetStrata</code> object in the list can be accessed using <code>rnetstrata.obj@R_set[['subset_val']]</code>.</p>
+<p>The slot <code>rnetstrata.obj@E_aggr</code> contains a matrix of estimated penalized partial correlation values for each observed edge (rows) in each R-net (columns).</p>
+</div>
+</div>
+<div id="assigning-network-attributes" class="section level2">
+<h2>Assigning network attributes</h2>
+<p>Vertices and edges in <code>igraph</code> objects can be assigned attributes, also referred to <em>metadata</em>. These attributes are useful for plotting decorated graphs (via <code>plot()</code> methods) and network analysis (e.g. <code>igraph::modularity()</code>). When created by <code>Rnet()</code>, the <code>'igraph'</code> objects in <code>rnetbasic@R</code> have one vertex attribute (<code>name</code>, corresponding to the elements of the <em>vertices</em> argument) and one edge attribute (<code>omega</code>, the edges’ estimated penalized partial corrleation).</p>
+<p>Users have the option to access, add to, and remove from an rnet object’s graphical metadata using <code>igraph</code> functions. Examples include:</p>
+<ul>
+<li><code>V(rnetbasic.obj@R)$name</code> to access vertex names</li>
+<li><code>rnetbasic.obj@R &lt;- set_vertex_attr(graph = rnetbasic.obj@R, name = 'vertex.shape', 'square')</code> to set all vertices’ to have a square shape</li>
+<li><code>E(rnetbasic.obj@R)$edge.color &lt;- 0</code> to make edges be colored black.</li>
+</ul>
+<p>Assigning each attribute individually can be time-consuming, so <code>Rnets</code> provides <code>Assign_Emetadata</code> and <code>Assign_Vmetadata</code> to more efficiently assign vertex and vertex attributes, respectively. These functions match vertex or edge attributes to a column in a data.frame, and then assign corresponding values as attributes. These methods are useful since the order in which the vertices appear in arguments <code>Rnet(x, ...)</code> or <code>Rnet(..., vertices)</code> may not reflect the order they exist in the <code>'igraph'</code> object produced.</p>
+<div id="assign_vmetadata" class="section level4">
+<h4>Assign_Vmetadata()</h4>
+<p>This method is used to simultaneously assign multiple vertex attributes to an <code>'igraph'</code> class object, including those stored in <code>rnetbasic@R</code>. The vertex attributes are stored in a data.frame that can be viewed easily. <code>Rnets::V_ATTRS</code> is included as example of attribute table.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">Rnets<span class="op">::</span>V_ATTRS[<span class="dv">1</span><span class="op">:</span><span class="dv">10</span>,]</code></pre></div>
+<pre><code>##    Code                       Drug Class      color label.color
+## 1   KAN                  Kanamycin AMINO       blue       white
+## 2   AMI                   Amikacin AMINO       blue       white
+## 3   GEN                 GentamIcin AMINO       blue       white
+## 4   STR               Streptomycin AMINO       blue       white
+## 5   APR                  Apramycin AMINO       blue       white
+## 6   CHL            Chloramphenicol AMPHN  goldenrod       black
+## 7   FFN                Florfenicol AMPHN  goldenrod       black
+## 8   CEP                Cephalothin B-LAC chartreuse       black
+## 9   FOX                  Cefoxitin B-LAC chartreuse       black
+## 10  CTC Cefotaxime-Clavulanic acid B-LAC chartreuse       black</code></pre>
+<p>The first column contains NARMS’ 3-letter code for the resistance and the other columns include the drug’s full name, a code for the drug class (“AMINO” for aminoglycoside, “FQ” for fluoroquinolones, etc.), a color to use for vertices of each class, and the label text color for the vertex.</p>
+<p>We could use a series of four <code>V(rnetbasic.obj@R)$attr</code> or <code>set_vertex_attr()</code> calls (one for each additional attribute to add), but it is more efficient to use <code>Assign_Vmetadata</code>. We will the vertex attribute <code>name</code>( <code>V(rnetbasic.obj@R)$name</code>) to entries <code>V_ATTRS$Code</code> to assign the data. The follwoing code is used to assign characteristics to the <code>EC_2008_Rnet</code> created above.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">Assign_Vmetadata</span>(EC_2008_Rnet, V_ATTRS, <span class="dt">match_attr =</span> <span class="st">'Code'</span>, <span class="dt">V_match_attr =</span> <span class="st">'name'</span>)</code></pre></div>
+<pre><code>##   name                        Drug Class      color label.color
+## 1  AMC Amoxicillin-Clavulanic acid B-LAC       cyan       black
+## 2  AXO                 Ceftriaxone B-LAC chartreuse       black
+## 3  CHL             Chloramphenicol AMPHN  goldenrod       black
+## 4  CIP               Ciprofloxacin    FQ        red       black
+## 5  GEN                  GentamIcin AMINO       blue       white
+## 6  STR                Streptomycin AMINO       blue       white
+## 7  TET                Tetracycline TETRA darkviolet       white
+## 8  TIO                   Ceftiofur B-LAC chartreuse       black</code></pre>
+<p>The function returns a table of the assigned characteristics for transparency. It is unneccesary to include the final argument in this case since <code>V_match_attr</code> defaults to the <code>name</code> attribute, but it is explictly included for clarity. Attibutes can be assigned using other vertex attribues, including those assigned previously with <code>Assign_Vmetadata(x, ...)</code>.</p>
+<p>Note that the it is not neccesary to define a new object or over-write the original object to assign the new attributes with <code>Assign_Vmetadata</code>. A new object can be created, or the old one redefined, e.g., <code>new_R_obj &lt;- Assign_Vmetadata(EC_2008, V_ATTRS, match_attr = 'Code'</code>. However, the first part of the line <code>new_R_obj &lt;- Assign_Vmetadata</code> can be omitted and the metadata will be added to the object represented by <code>x</code>. This feature is included to reduce redundant code and can be suppressed by including <code>reassign = F</code> as an argument.</p>
+</div>
+<div id="assign_emetadata" class="section level4">
+<h4>Assign_Emetadata()</h4>
+<p>This method is used to simulataneously assign multiple edge attributes to an <code>igraph</code> network object based on a continuous edge attribute. in rnet objects, the attribute is typically <code>E(rnetbasic@R)$omega</code>, the penalized partial correlation between the two vertices/variables. Again, we include an example data.frame of edge attributes.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">Rnets<span class="op">::</span>E_ATTRS</code></pre></div>
+<pre><code>##   lty width
+## 1   3     2
+## 2   2     2
+## 3   2     4
+## 4   1     4</code></pre>
+<p>This frame is much simpler than <code>V_ATTRS</code>, containing 2 columns and 4 rows, and no obvious column used for matching. <code>Assign_Emetadata()</code> assigns attributes by binning a numerical edge attribute (using <code>cut(abs(E(rnet.obj@R)$match_attr), e_cuts)</code>) and assigning the attribues stored first row of <code>E_ATTRS</code> to edges with <code>E(rnet.obj@R)$match_attr</code> values in the lowest bin, the second row’s values to edges with <code>E(rnet.obj@R)$match_attr</code> in the next lowest bin, and so on.</p>
+<p>The <code>e_cuts</code> argument defines the cut points used to bin <code>E(rnet.obj@R)$match_attr</code>. This argument should be a numeric vector which has one more entries than <code>E_ATTRS</code> has rows (i.e., <code>length(e_cuts) == dim(E_ATTRs)[1]</code>), and it is suggested that <code>min(e_cuts) = 0</code> and <code>max(e_cuts) = 1</code>; errors will be produced when <code>max(abs(rnet.obj@Omega)) &gt; max(abs(e_cuts))</code>. <code>E_metadata()</code> will, by default, bin the absolute value of <code>match_attr</code> (<code>abs(E(rnet.obj@R)$match_attr)</code>) and use the result to match rows. Hence, attributes assigned to negative edges by <code>Assign_Emetadata</code> will ‘mirror’ the attributes for positive edges. This behavior can be supressed with <code>Assign_Emetadata(..., attr_abs_val = FALSE)</code>.</p>
+<p>The code below assigns edge attributes based on <code>omega</code> binned using cut points 0, 0.05, 0.10, 0.20, and 1:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">E_CUTS &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="dv">0</span>, <span class="fl">0.05</span>, <span class="fl">0.10</span>, <span class="fl">0.20</span>, <span class="dv">1</span>)
+<span class="kw">Assign_Emetadata</span>(EC_2008_Rnet, E_ATTRS, <span class="dt">match_attr =</span> <span class="st">'omega'</span>, <span class="dt">e_cuts =</span> E_CUTS)</code></pre></div>
+<pre><code>##        omega lty width color
+## 1 0.26262438   1     4 black
+## 2 0.34200906   1     4 black
+## 3 0.29536204   1     4 black
+## 4 0.07383224   2     2 black
+## 5 0.34889891   1     4 black
+## 6 0.06947343   2     2 black
+## 7 0.10636398   2     4 black</code></pre>
+<p><code>Assign_Emetadata()</code> handles the edge attribute <code>color</code> differently since since it is often used to denote the sign of edge attribute. By default, edges are assigned <code>color = 'black'</code> where <code>E(rnet.obj@R)$match_attr &gt; 0</code> and <code>color = 'red'</code> where <code>E(rnet.obj@R)$match_attr &lt; 0</code>. Different colors for positive and negative edges can be assigned using the <code>edge_col</code> argument. A column named <code>color</code> in the edge metadata frame will override this this argument. No edge colors will be assigned if <code>edge_col = FALSE</code>, <code>edge_col = NA</code>, or <code>edge_col = NULL</code>.</p>
+</div>
+</div>
+<div id="network-visualization" class="section level2">
+<h2>Network visualization</h2>
+<p>Two primary methods are used to visualize the R-nets: generic <code>plot()</code> methods for visualizing individual networks and <code>Rnet_Heatmap()</code> for comparing multiple graphs.</p>
+<div id="rnet-plot-methods" class="section level4">
+<h4>Rnet plot() methods</h4>
+<p>The <code>'igraph'</code> objects held in the rnet objects can be plotted directly using the S3 method <code>plot.igraph()</code>, e.g., <code>plot.igraph(rnetbasic.obj@R)</code> and <code>plot.igraph(rnetstrata.obj@R_set[[1]]</code>. <code>plot.igraph()</code> allows the user to assign arguments controling the appearance of vertices (e.g., vertex.size, vertex.color), edges (e.g. edge.lty, edge.width), and the layout of the graph (see <code>?igraph.plotting</code> for more details and a complete of parameters). Additionally, <code>plot.igraph()</code> will automatically identify any edge and vertex attribute names matching parameter names and apply those in place of undeclared arguments.</p>
+<p><code>Rnets</code> also includes an S4 <code>plot()</code> method for <code>'rnetBasic'</code> objects (and <code>'rnetSubset'</code> objects via inheritance). This method accepts all standard and plotting arguments for <code>plot.igraph()</code>. Like <code>plot.igraph()</code>, any plotting arguments declared in the call to the S4 <code>plot(x)</code> method will override the values in <code>V(x@R)$attr</code> and <code>E(x@R)$attr</code>. For easy comparison, the graph layouts are kept the same between for subsequent <code>plot(x)</code> calls.</p>
+<p>A simple, undecorated graph can be drawn as follows:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">EC_2012_Rnet &lt;-<span class="st"> </span><span class="kw">Rnet</span>(NARMS_EC_DATA, <span class="dt">L1 =</span> <span class="fl">0.15</span>, <span class="dt">vert =</span> ABX_LIST, <span class="dt">subset =</span> <span class="kw">expression</span>(Year <span class="op">==</span><span class="st"> </span><span class="dv">2012</span>))
+<span class="kw">plot</span>(EC_2012_Rnet)</code></pre></div>
+<p><img src="data:image/png;base64,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" /><!-- --></p>
+<p>The plot can be decorated by adding arguments from <code>plotting.igraphs</code>:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">plot</span>(
+  EC_2012_Rnet,
+  <span class="dt">edge.color =</span> <span class="st">'black'</span>,
+  <span class="dt">edge.lty =</span> <span class="dv">2</span>,
+  <span class="dt">vertex.shape =</span> <span class="kw">c</span>(<span class="st">'circle'</span>, <span class="st">'square'</span>),
+  <span class="dt">vertex.size =</span> <span class="dv">30</span>,
+  <span class="dt">vertex.color =</span> <span class="st">'cyan'</span>
+)</code></pre></div>
+<p><img src="data:image/png;base64,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" /><!-- --></p>
+<p><code>EC_2008_Rnet</code> with metadata attributes previously assigned by <code>Assign_Vmetadata()</code> and <code>Assign_Emetadata()</code> can be plotted without additional arugments:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">plot</span>(EC_2008_Rnet)</code></pre></div>
+<p><img src="data:image/png;base64,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" /><!-- --></p>
+<p>This plot with these pre-defined attributes can also be plotted using <code>plot.igraph()</code>, but a random layout will be reassigned with every call:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">plot.igraph</span>(EC_2008_Rnet<span class="op">@</span>R)</code></pre></div>
+<p><img src="data:image/png;base64,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" /><!-- --></p>
+<p>Some previously defined attributes can be overridden while leaving other attributes intact by declaring the respective arguments in the <code>plot()</code> call:</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">plot</span>(<span class="dt">x =</span> EC_2008_Rnet,
+     <span class="dt">vertex.color =</span> <span class="st">'red'</span>,
+     <span class="dt">edge.lty =</span> <span class="st">'4313'</span>
+     )</code></pre></div>
+<p><img src="data:image/png;base64,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" /><!-- --></p>
+<p>Note the layout using <code>plot()</code> is the same as the previous call to <code>plot()</code>, but is again different than the <code>plot.igraph()</code> call.</p>
+</div>
+<div id="rearranging-network-layouts" class="section level4">
+<h4>(Re)arranging network layouts</h4>
+<p>The layout for plotting networks in an Rnet object can be defined at creation, using the optional <code>layout</code> argument for <code>Rnet()</code> to define a layout matrix, or at any later time by editing an existing rnet object’s layout matrix in <code>@layout</code> slot.</p>
+<p>The <code>igraph</code> package also includes <code>tkplot()</code> and its associated functions for manually laying out graphs. <code>tkplot()</code> creates an interative canvas in a seperate window to place (click-and-drag) vertices to create custom layouts, which can then be captured with <code>tk_coords()</code>. More information about these functions can be found in <code>?tkplot</code>.</p>
+<p>The following code uses <code>tkplot()</code> and it’s associated functions to manually create and save a layout for an rnet object.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co">#Open a new tkplot window with the network 'EC_2008_Rnet'</span>
+<span class="kw">tkplot</span>(EC_2008_Rnet<span class="op">@</span>R)
+
+<span class="co">#You can now click and drag the vertices on the canvas to create the layout desired.</span>
+
+<span class="co">#The following code can be used to save the layout to use in subsequent plot() calls.</span>
+EC_2008_Rnet<span class="op">@</span>layout &lt;-<span class="st"> </span><span class="kw">tkcoords</span>(<span class="dv">1</span>)
+
+<span class="kw">plot</span>(EC_2008_Rnet)</code></pre></div>
+</div>
+<div id="rnet-heatmaps" class="section level4">
+<h4>Rnet heatmaps</h4>
+<p>Heatmaps can be used to compare the edges in multiple Rnets. The plots visually compare the edge weights from multiple graphs sharing a common vertex set. For MRFs estimated via the gLASSO, the graphs should also share a common L<sub>1</sub> penalty to maintain comparability.</p>
+<p><code>Rnet_Heatmap()</code> returns an S3 object containing a matrix for visualizing all the edges found in the list of networks in <code>rnetstrata.obj@R_set</code>. The edge weights in this heatmap are based on <span class="math inline">\(\omega_{ij}\)</span> which are binned using the <code>e_cuts</code> argument just like they were in the <code>E_metadata()</code>. The matrix object can be plotted using an S3 <code>image()</code> method.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">EC_edge_heatmap &lt;-<span class="st"> </span><span class="kw">Rnet_Heatmap</span>(EC_byYear_Rnet, <span class="dt">e_cuts =</span> <span class="kw">c</span>(<span class="dv">0</span>, <span class="fl">0.05</span>, <span class="fl">0.10</span>, <span class="fl">0.20</span>, <span class="fl">1.0</span>))
+<span class="kw">image</span>(EC_edge_heatmap)</code></pre></div>
+<p><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASAAAAEgCAMAAAAjXV6yAAAA3lBMVEUAAAAAABcAACgAACoAADIAADoAAEkAAGYAMlEAOjoAOpAAZrYNAAANACgXAAAoAAAoOgAqOgAxABcxAGY6AAA6ACg6ADo6AEk6AGY6OgA6OpA6ZrY6fHs6kNtJAABJnJBYAABmAABmABdmADpmAGZmZmZmkJBmtv+B25CB//+QOgCQOjqQOmaQZgCQkDqQnVGQtpCQvJCQ27aQ2/+d//+2ZgC2tma225C2/7a2/9u2///MzMzbkDrb/7bb////AAD/RET/gSj/iIj/tmb/u7v/22b/25D//7b//9v///+52SApAAAACXBIWXMAAA7DAAAOwwHHb6hkAAAJiklEQVR4nO2dC3vbNBSGvUIIrDBu3egKAcrKyjougxK6taZcDE78//8QlmzJbiLpO86FpNL3Ps+axLXc6J11fCJZSlaRINmu38C+Q0EACgJQEICCABQEoCAABQEoCEBBAAoCUBCAggAUBKAgAAUBKAhAQQAKAlAQgIIAFASgIAAFASgIQEEACgJQEICCABQEoCAABQEoCEBBAAoCUBCAggAUBKAgAAUBKAhAQQAKAlAQgIIAFASgIAAFASgIQEEACgJQEICCABQEoCAABQEoCEBBAAoCUBCAggAUBKAgAAUBKAhAQQAKAlAQgIIAFASgIAAFASgIQEEACgJQEICCAEkI+mcZcdmsGF3WD+XR+Lp+mJ2qh/Ioyw77O7UbymO1T/2zeXJ/WEvQxbfKRfnk6Xn9ULxXV72oJc0veobMhjQFHV+p2pbHP07qV9Pnx9ezU6WqfHJpdrEb0hR0WE0nqtZXJ7fV7Ky2VYwXam83pCnosioe3ta1fvOyfnZYV129vIPdoEJRzdgvKNvPmL+WoFvdhOoq55Nqeh4WhM+gCAUpdPwtT34/U1W3LSqvf6H+DWliEQqqTPydPXt1cluaIN381NgNyQqqw7Sq8jSb6JMkrzOj+UWvoZkNEkE3u2cLgoqxutarlFFXvcgWEsV2QydIR+tJOoKqSpJPtzsVOmxN3GdRrILmgnza7FRVvYCUiqAS59N2J8XUfO5IRVCO82m7U9Xk1k5BWaSCZs9wPm13aq/7SZ1Bqt4on7Y76QaWlqD5hSCftju1gSklQW1+E86n7U7zi0n3Og1B0+bqHc6n7U55s21/BS3b+HuZIYJU9FXofLp4oPLpx1nDO0ZC29MxevV49LT5zVU6gvoEksGyyZTqFDI7N1l1eoICyaARNL/QcSlfuswlISiQDBpB7cY7SbY9WuyCQsmgEdRmSL0LXP9wu7Zzs11BoWSQgnoZY5cMmjxxqYmZa19SgoLJIIM0SAbvzWX+DwmrCCreUu2qyCyHRpDuXNQZgG5ir0/V4Jj7cLu2c7M9Qf4cccDYfMyCvDnikLH5mAV5c8RBA4e7tnOzNUH+HHHQ2Pyu7dxsTZA/Rxw0Nr9rOzfbEhTIEdnEepV35YiDxuZ3bedmW4JCOeKQsXnxH15gOf1d9Uiigw/qclVJ8ezZz3rYuTh4ZNNEu4/pTvzpff148F3z+m1Xf8fm6rDqkUQHHyJINOxsP2f0XzsPtyJ7LEg47JyuINGwc8KCRMPOraAjG5w8gla/iXN/BYmGnVM+gyTDzkkLkgw7Jy1IMuyctKDesHPgNs5+kM68dwc5BTnenaOPWLSTqJyj7msJUm2puWW16804mlR9B3Zgvt3hqn0ty6TvvaDy6FxJmnRGmptd3T32/dfOw0UnqPv03gnSSTUFNTXqtaRO0JvvPQPzQJArUbzvgrqs0CbKKhVy3toBM+kYzyAtaKpCbu8Mup6/vGQTa2rUDbX3BVXl586B+QQFtUF6UZDu9+h2S1hQpbOe+cVoQVA7sWWoIFm1JBX9cxlHOcd7EP29AYLsgIZJlNuu1QdW0EKXa/ZVIFGMUVDTY990sfbOlOlKn8WiFNTcC9U5sKMXFGSmItgPphTkEqQ/rh4uipguj2oIulzjFNQ46mLQ8pTUxM+gps5qmMeK0J/xV0gUoxTU9EHrmzM7EXdvQkxbUNO7qgfl177Mi+4ccNRdVG6DyAXp/sSP7Y2bBy/Koy9UEzt+fWqitM4kD22Pa/ao6XhMRJCgPxHnkTELwv2JgjwyZkG4P1GQR8YsSNCfiPNIe7Q4BcH+RJhHdocTvbt7JUjSn6g3L+eRaQjC/YmCPDJmQbg/UZBHdoeT5Miu3tRlZatm4I7e1LUy6TYL7Abem/rn/USwDlKZ9tETNDt1Run4BJkn4eVI7fC8idK+6VDRCsJTnuzZE5xQF6sgwZQnIyg8JTNWQYL5GEZQ+wvPvPloBeEpT0ZQeFp4/ILgGZSoIF8TGzpvPlZBgilPaQdpwZQn2WX+//7IsCqDBVV/6YQ6f/fT62qq5sg3wdp8ZrfD8x+8qKp/H2XZwQv34XZdcSmDBbWTolT7KU9uXWdJ4meQmTVfX6Om55Urzshi0K4rLmWwIDtrfvr85LZyJYOyRHHXFZcyVFA3a15X3JXryPKgXVdcylBB3az5XAVmCloQ1M2an529PrNjGvV5NTRR3HXFpQwU1GY/devKJyocMUgvCLqzFqeOR7zM9wXNvmlXbH/wUR2AZl+Pfm2mADmmzqeZKA6bOp/gGTRo6nyKMWjQ1PlQohipoCFT58N5UKSZ9LCp8+kliqIV21NOFG2WWIqmzqcXpEUrtqd7mR/9UrcVda9CMb767Mvxb6PLZhC6P3Ve2yg/UXH8w8PUEkX5l/oEehtjFjTgS338vY0xCxrypT7e3saoBQ34Uh9vb6M9WoyCBnypj7e30bLreouRC4Ipor+3MQ1BMEWU9DbGLUj6pT6B3sbIBQVXV7Lf/DN6qq5kuQ5I3nsUewfeT8Ri+oK2wvKBHX9q1U0bPBSCggD7+d3DewQFASgIQEEACgJQEICCABQEoCAABQEoCEBBAAoCUBCAggAUBKAgAAUBKAhAQYBNCdLjr/oOh8KsE1z0Fgx2L4USLGe+Mti9Do+jnF0Vq3CvVLwaGxKk1o+pcjWcpobX9KiifVKpt+wRBMp5llBxllM769G6OwdYmw0JahZcysfXzQLnUzVC3T6p9PpVHkHhcguL0ATL6RNH7X33AGuz0RhUqPv32ndun6ifD3/wNbFguWa1dFm52s9E33hx5wDrs1FB07p++r6qovdE3/jgjUGhcvoX0r9X9f5at2V9Nimo/j9sG3/90z7R53xQkKdcswCm9O/pDWO7eNjGgtAGBRUmZi5UVN3vEBLkK4dqebec3rLXggp91V1uKvpJQJCvXBUstVSuMg/72sTydtHTpWCbB/MZfznQwhbLqRf7HKTzVoDncu09F0LlfIs1Osspiv29zHfXY3fC5xMULBeII45ylWlXe5kotu1Iva3cJPq54KNGsFygmbjK2cCT7+FHjXihIAAFASgIQEEACgJQEICCABQEoCAABQEoCEBBAAoCUBCAggAUBKAgAAUBKAhAQQAKAlAQgIIAFASgIAAFASgIQEEACgJQEICCABQEoCAABQEoCEBBAAoCUBCAggAUBKAgAAUBKAhAQQAKAlAQgIIAFASgIAAFASgIQEEACgJQEICCABQEoCAABQEoCEBBAAoCUBDgP48HwaYLMX38AAAAAElFTkSuQmCC" /><!-- --></p>
+<p>The <code>image()</code> method provides 4 shades of red for positive colors, 4 shades of green for negative colors, edges that are absent have white cells, and edges that were ‘invalid’ are colored grey. The invalid edges typically occur because one or both of the resistances were tested in that particular set of isolates.</p>
+</div>
+</div>
+<div id="network-analysis" class="section level2">
+<h2>Network analysis</h2>
+<p>There are various strategies to summarize network structures numerically. Two common summary measures used to describe MRFs are <em>density</em> and <em>modularity</em>.</p>
+<div id="density" class="section level4">
+<h4>Density</h4>
+<p>Density describes the porportion of existing edges (<em>m</em>) in a graph compared to the maximum number of edges, <em>m</em><sub>max</sub>. The maximum number of edges is determined by size of the vertex set (<em>k</em>): <em>m</em><sub>max</sub> = <sub><em>k </em></sub>C<sub>2</sub> = <em>k</em> ( <em>k</em> - 1) /2, and density can be estimated as <em>m</em> / <em>m</em><sub>max</sub>.</p>
+<p><code>igraph::edge_density()</code> can be used to calculate density for any <code>'igraph'</code> object.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">edge_density</span>(EC_2008_Rnet<span class="op">@</span>R)</code></pre></div>
+<pre><code>## [1] 0.25</code></pre>
+</div>
+<div id="modularity" class="section level4">
+<h4>Modularity</h4>
+<p>Modularity (<em>Q</em>) describes how frequently similar vertices are adjacent. Vertex attributes are used to determine which vertex similarity: a vertex pair is similar the pair has the same value for the attribute, and dissimilar otherwise. <em>Q</em> is bounded by [-1,1]; <em>Q</em> is positive when similar vertices tend to be more connected than dissimilar vertices, and negative when similar vertices tend to be less connected than dissimilar vertices.</p>
+<p><code>igraph::modularity()</code> can be used to estimate modularity, but the vertex membership must first be corerced to a numeric (or factor).</p>
+<p>The following code estiamtes the modularity for the MRF for</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">v_mem &lt;-<span class="st"> </span><span class="kw">as.factor</span>(<span class="kw">V</span>(EC_2008_Rnet<span class="op">@</span>R)<span class="op">$</span>Class)
+Q &lt;-<span class="st"> </span><span class="kw">modularity</span>(<span class="dt">x =</span> EC_2008_Rnet<span class="op">@</span>R, <span class="dt">mem =</span> v_mem)
+Q</code></pre></div>
+<pre><code>## [1] 0.2142857</code></pre>
+<p>Edge weights can be incorporated into <em>Q</em> estimates as well (becoming <em>Q</em><sub>w</sub>), and subtly changes the interpretation: when <em>Q</em><sub>w</sub> &gt; 1, similar vertices tend to be <em>more strongly</em> connected than dissimilar vertices, and <em>Q</em><sub>w</sub> &lt; 1 when similar vertices tend to be <em>less strongly</em> connected than dissimilar vertices.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">Q_w &lt;-<span class="st"> </span><span class="kw">modularity</span>(<span class="dt">x =</span> EC_2008_Rnet<span class="op">@</span>R, <span class="dt">mem =</span> v_mem, <span class="dt">weights =</span> <span class="kw">E</span>(EC_2008_Rnet<span class="op">@</span>R)<span class="op">$</span>omega)
+Q_w</code></pre></div>
+<pre><code>## [1] 0.3534955</code></pre>
+<p>A major limitation of <code>igraph::modularity()</code> is that it can only handle positive edge weights. Edges in MRFs are defined by, and often weighted by, the penalized partial correlations which can take on values below 0. The above example has only positive partial correlations. <code>Rnets::signed_modularity()</code> uses a more robust approach<a href="#fn5" class="footnoteRef" id="fnref5"><sup>5</sup></a> to estimate modularity and is provided to allow <em>Q</em> calculation with negative edge weights.</p>
+<p><code>Rnets::signed_modularity()</code> is parameterized in a similar way, but <code>membership</code> and <code>weight</code> arguments can be called by simply providing the attribute names, and <code>membership</code> does not have to be a numeric or factor.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">signed_modularity</span>(EC_2008_Rnet, <span class="dt">membership =</span> <span class="st">'Class'</span>, <span class="dt">weight =</span> <span class="st">'omega'</span>)</code></pre></div>
+<pre><code>## [1] 0.3534955
+## attr(,&quot;weight&quot;)
+## [1] &quot;omega&quot;
+## attr(,&quot;membership&quot;)
+## [1] &quot;Class&quot;</code></pre>
 </div>
 </div>
 <div class="footnotes">
 <hr />
 <ol>
 <li id="fn1"><p>Friedman, Hastie &amp; Tibshirani. “Sparse inverse covariance estimation with the graphical lasso.” <em>Biostatistics</em> (2007)<a href="#fnref1">↩</a></p></li>
-<li id="fn2"><p><a href="https://www.fda.gov/animalveterinary/safetyhealth/antimicrobialresistance/nationalantimicrobialresistancemonitoringsystem/" class="uri">https://www.fda.gov/animalveterinary/safetyhealth/antimicrobialresistance/nationalantimicrobialresistancemonitoringsystem/</a><a href="#fnref2">↩</a></p></li>
-<li id="fn3"><p>Stability Approach to Regularization Selection (StARS) for High Dimensional Graphical Models. <em>Advances in Nerual INformation Processing Systems 23</em> (2010)<a href="#fnref3">↩</a></p></li>
+<li id="fn2"><p>Gabor Csardi and Tamas Nepusz. “The igraph software package for complex network research.” <em>InterJournal</em> (2006)<a href="#fnref2">↩</a></p></li>
+<li id="fn3"><p><a href="https://www.fda.gov/animalveterinary/safetyhealth/antimicrobialresistance/nationalantimicrobialresistancemonitoringsystem/" class="uri">https://www.fda.gov/animalveterinary/safetyhealth/antimicrobialresistance/nationalantimicrobialresistancemonitoringsystem/</a><a href="#fnref3">↩</a></p></li>
+<li id="fn4"><p>Stability Approach to Regularization Selection (StARS) for High Dimensional Graphical Models. <em>Advances in Nerual Information Processing Systems 23</em> (2010)<a href="#fnref4">↩</a></p></li>
+<li id="fn5"><p>Sergio Gomez, Pablo Jensen, and Alex Arenax. “Analysis of community structure in networks of correlated data.” <em>IXXI - Institut des Syst`emes Complexes</em>. (June 18 2009)<a href="#fnref5">↩</a></p></li>
 </ol>
 </div>
 

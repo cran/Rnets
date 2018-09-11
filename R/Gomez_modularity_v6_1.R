@@ -1,6 +1,6 @@
 #' Robust Estimator of modularity (Gomez, et al 2009)
 #'
-#' Newman's method of estimating graphical modularity based on vertex can accomodate edge weights, but cannot incorporate signed edges, e.g. edges with both positive and negative. Gomez, et al, proposed a similar estimator of modularity estimated in two parts corresponding to positive (Q+) and negative (Q-) edges, and the latter is subtracted from the former. The 'signedModularity' function implements this method of modularity estimation, and returns a scalar.
+#' Newman's method of estimating graphical modularity based on vertex can accomodate edge weights, but cannot incorporate signed edges, e.g. edges with both positive and negative. Gomez, et al, proposed a similar estimator of modularity estimated in two parts corresponding to positive (Q+) and negative (Q-) edges, and the latter is subtracted from the former. The 'signed_modularity' function implements this method of modularity estimation, and returns a scalar.
 #' @param x A graph presented in of the forms discussed below.
 #' @param membership Defines vertex membership to determine if vertices are similar. May be provided as a string that matches an attribute of x or a vector of length equal to the number of vertices in the graph.
 #' @param weight Edge weights. Like 'membership', this argument can be defined as a string matching an edge attribute of 'x' or a vector of length equal to the number of edges, but may also be left as NULL which will return an unweighted modularity estimate.
@@ -18,26 +18,26 @@
 #'      #Randomly assign edge weights to edge attribute 'weight', both positive and negative
 #' x <- set_vertex_attr(x, name = 'group', value = sample(c('red', 'blue'), size = 5, replace = TRUE))
 #' 
-#' signedModularity(x, membership = 'group', weight = 'weight')
-#' signedModularity(x, membership = 'group')
+#' signed_modularity(x, membership = 'group', weight = 'weight')
+#' signed_modularity(x, membership = 'group')
 #' 
 #' }
 
-setGeneric('signedModularity',
+setGeneric('signed_modularity',
   function(x, membership, weight = NULL)
   {
-  UseMethod("signedModularity", x)
+  UseMethod("signed_modularity", x)
 })
 
 
-#' @title signedModularity-matrix
-#' @description signedModularity for class(x) = 'matrix'
-#' @rdname signedModularity-matrix
+#' @title signed_modularity-matrix
+#' @description signed_modularity for class(x) = 'matrix'
+#' @rdname signed_modularity-matrix
 #' @param x A weighed adjacency matrix
 #' @param membership Defines vertex membership to determine if vertices are similar. May be provided as a string that matches an attribute of x or a vector of length equal to the number of vertices in the graph.
 #' @param weight Edge weights. Like 'membership', this argument can be defined as a string matching an edge attribute of 'x' or a vector of length equal to the number of edges, but may also be left as NULL which will return an unweighted modularity estimate.
 #' 
-setMethod('signedModularity',
+setMethod('signed_modularity',
   signature(x = 'matrix'),
   function(x, membership, weight = NULL) 
     {
@@ -61,14 +61,14 @@ setMethod('signedModularity',
   })
 
 
-#' @title signedModularity-igraph
-#' @description signedModularity for class(x) = 'igraph'
-#' @rdname signedModularity-igraph
+#' @title signed_modularity-igraph
+#' @description signed_modularity for class(x) = 'igraph'
+#' @rdname signed_modularity-igraph
 #' @param x An igraph object
 #' @param membership Defines vertex membership to determine if vertices are similar. May be provided as a string that matches an attribute of x or a vector of length equal to the number of vertices in the graph.
 #' @param weight Edge weights. Like 'membership', this argument can be defined as a string matching an edge attribute of 'x' or a vector of length equal to the number of edges, but may also be left as NULL which will return an unweighted modularity estimate.
 #' 
-setMethod('signedModularity',
+setMethod('signed_modularity',
   signature(x = 'igraph'),
   function(x, membership, weight = NULL) 
     {
@@ -88,29 +88,29 @@ setMethod('signedModularity',
     })
 
 
-#' @title signedModularity-rnetBasic
-#' @description signedModularity for class(x) = 'rnetBasic'
-#' @rdname signedModularity-rnetBasic
+#' @title signed_modularity-rnetBasic
+#' @description signed_modularity for class(x) = 'rnetBasic'
+#' @rdname signed_modularity-rnetBasic
 #' @param x An object of class 'rnetBasic'
 #' @param membership Defines vertex membership to determine if vertices are similar. May be provided as a string that matches an attribute of x or a vector of length equal to the number of vertices in the graph.
 #' @param weight Edge weights. Like 'membership', this argument can be defined as a string matching an edge attribute of 'x' or a vector of length equal to the number of edges, but may also be left as NULL which will return an unweighted modularity estimate.
 #' 
-setMethod('signedModularity',
+setMethod('signed_modularity',
   signature(x = 'rnetBasic'), 
-  function(x, membership = NULL, weight = 'omega') signedModularity(x@R, membership, weight)
+  function(x, membership = NULL, weight = 'omega') signed_modularity(x@R, membership, weight)
   )
 
 
-#' @title signedModularity-rnetMultiStrata
-#' @description signedModularity for class(x) = 'rnetMultiStrata'
-#' @rdname signedModularity-rnetMultiStrata
+#' @title signed_modularity-rnetMultiStrata
+#' @description signed_modularity for class(x) = 'rnetMultiStrata'
+#' @rdname signed_modularity-rnetMultiStrata
 #' @param x An object of class 'rnetMultiStrata'
 #' @param membership Defines vertex membership to determine if vertices are similar. May be provided as a string that matches an attribute of x or a vector of length equal to the number of vertices in the graph.
 #' @param weight Edge weights. Like 'membership', this argument can be defined as a string matching an edge attribute of 'x' or a vector of length equal to the number of edges, but may also be left as NULL which will return an unweighted modularity estimate.
 #' 
-setMethod('signedModularity',
-  signature(x='rnetMultiStrata'),
-  function(x, membership, weight = 'omega')  sapply(x@R_Strata, signedModularity, membership, weight)
+setMethod('signed_modularity',
+  signature(x='rnetStrata'),
+  function(x, membership, weight = 'omega')  sapply(x@R_Strata, signed_modularity, membership, weight)
   )
 
 .sign.Q.internal <- function(x, membership) {

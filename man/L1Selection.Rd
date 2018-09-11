@@ -4,30 +4,32 @@
 \alias{L1Selection}
 \title{L1 Selection for Rnets}
 \usage{
-L1Selection(Data, L1_set, B = 100, n_b = 0.5, V_set = NULL,
-  n_threshold = 0, cor_method = "s", cor_pairing = "pair",
-  Forced_zeros = NULL, Stratify = NULL)
+L1Selection(x, L1_values, B = 100, n_b = 0.5, vertices = NULL,
+  n_min = 1, cor_method = "s", cor_pairing = "pair",
+  forced_zeros = NULL, subset = NULL, verbose = TRUE)
 }
 \arguments{
-\item{Data}{The dataset containing the MICs}
+\item{x}{The dataset containing the MICs}
 
-\item{L1_set}{The set of candidate L1 penalties to be evaluated for creating a sparse precision matrix. Must be non-negative.}
+\item{L1_values}{The set of candidate L1 penalties to be evaluated for creating a sparse precision matrix. Must be non-negative.}
 
 \item{B}{The number of subsamples to evaluate network stability. Defaults to 100 subsamples.}
 
 \item{n_b}{The size of the subsample to be drawn from the data. If 0 < n_b < 1, this is interpreted as a proportion of the data set; if n_b > 1, it is interpreted as a set sample size. Defaults to 50\% of sample size.}
 
-\item{V_set}{A character vector corresponding to the names of the antibiotics to include in the Rnet. Defaults to an empty list, in which case all columns in 'MIC_data' will be included in the Rnet}
+\item{vertices}{A character vector corresponding to the names of the antibiotics to include in the Rnet. Defaults to an empty list, in which case all columns in 'MIC_data' will be included in the Rnet}
 
-\item{n_threshold}{The minimum number of observations required for an an estimated correlation to be valid. Defaults to 0, in which case any number of observations will be sufficient to estimate a valid correlation}
+\item{n_min}{The minimum number of observations required for an an estimated correlation to be valid. Defaults to 0, in which case any number of observations will be sufficient to estimate a valid correlation}
 
 \item{cor_method}{The method used to estimate the correlation matrix. Must be 'pearson', 'spearman', or 'kendall'. Partial matches allowed. Defaults to 'spearman'.}
 
 \item{cor_pairing}{The method used to determine how NAs are handled when determining which pairs are used to estimate correlations. See 'cor' function documentation for additional information.}
 
-\item{Forced_zeros}{Edges to be omitted from the Rnet.}
+\item{forced_zeros}{Edges to be omitted from the Rnet.}
 
-\item{Stratify}{The rule for stratifying the data, if desired.}
+\item{subset}{The rule for stratifying the data, if desired.}
+
+\item{verbose}{Logical that tells the function to list progress in estimating Rnets from subsets.}
 }
 \value{
 A vector of D statistics, corresponding the tested L1 values.
@@ -38,11 +40,11 @@ An implementation of the Stability Approach to Regularization Selection (StARS) 
 \examples{
 \donttest{
  EC_all_L1Selection <- L1Selection(
-                             Data = NARMS_EC_DATA, 
-                             L1_set = seq(0.05, 0.50, 0.05),
+                             x = NARMS_EC_DATA, 
+                             L1_values = seq(0.05, 0.50, 0.05),
                              n_b = 1500,
-                             V_set = ABX_LIST
+                             v = ABX_LIST
                              )
-round(EC_all_L1Selection@StARS_D, 4)
+print(EC_all_L1Selection)
 }
 }

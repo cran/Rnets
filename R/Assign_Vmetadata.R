@@ -4,15 +4,15 @@
 #'
 #' This method also works with all rnet objects (currently class 'rnetBasic', 'rnetStrata', and 'rnet.multi.strata'), and also adds the names of the metadata attributes to the 'V_metadata' slot.
 #'
-#' @param network The network to which the vertex metadata will be applied.
+#' @param x The network to which the vertex metadata will be applied.
 #' @param V_metadata A dataframe containing the vertex metadata to be assigned. A vertex attribute will be assigned for every column in the frame, except the column used to match V_metadata to existing vertex attribues.
-#' @param match.attr The name of the column in V_metadata used to match metadata to vertices. Defaults to the first column of V_metadata.
-#' @param vertex.match.attr the name of the vertex attribute used to match metadata. Defaults to 'name' (V(network)$name), which is typically assigned when the network is created with igraph functions.
-#' @param reassign A logical argument controling if the function should overwrite the called network argument. Defaults to 'True' for brevity.
+#' @param match_attr The name of the column in V_metadata used to match metadata to vertices. Defaults to the first column of V_metadata.
+#' @param V_match_attr the name of the vertex attribute used to match metadata. Defaults to 'name' (V(x)$name), which is typically assigned when the network is created with igraph functions.
+#' @param reassign A logical argument controling if the function should overwrite x in the parent environment. Defaults to 'True' for brevity.
 #' @import igraph
-#' @return An object of the same type as x, with the new vertex attributes assigned by matching 'match.attr' to 'vertex.match.attr'.
+#' @return An object of the same type as x, with the new vertex attributes assigned by matching 'match_attr' to 'V_match_attr'.
 #' @rdname Assign_Vmetadata
-#' @include Rnet_classes.R
+#' @include classes.R
 #' @examples 
 #' # V_ATTRS' is a data.frame included in the package containing vertex metadata
 #' #     regarding antimicrobial class and a color scheme for the vertices. These 
@@ -22,8 +22,8 @@
 #' 
 #' EC08_rnet <- Rnet(NARMS_EC_DATA, 
 #'   L1 = 0.25, 
-#'   V_set = ABX_LIST, 
-#'   Stratify = NARMS_EC_DATA$Year == 2008
+#'   vertices = ABX_LIST, 
+#'   subset = NARMS_EC_DATA$Year == 2008
 #'   )
 #' 
 #' #Attributes prior to additions
@@ -32,8 +32,8 @@
 #' 
 #' Assign_Vmetadata(EC08_rnet, 
 #'                  V_metadata = V_ATTRS,
-#'                  match.attr = 'Code',
-#'                  vertex.match.attr = 'name'
+#'                  match_attr = 'Code',
+#'                  V_match_attr = 'name'
 #'                  )
 #' 
 #' #NOTE: EC08_rnet does not need to be reassigned for brevity. Returns data.frame of assigned data.
@@ -41,8 +41,8 @@
 #' 
 #' EC08_withAttrs <- Assign_Vmetadata(EC08_rnet, 
 #'                  V_metadata = V_ATTRS,
-#'                  match.attr = 'Code',
-#'                  vertex.match.attr = 'name'
+#'                  match_attr = 'Code',
+#'                  V_match_attr = 'name'
 #'                  )
 #' 
 #' #Atrributes after edges assigned.
@@ -51,91 +51,104 @@
 #' @export
 
 setGeneric('Assign_Vmetadata',
-	function(network, V_metadata, match.attr = NULL, vertex.match.attr = 'name', reassign = T)
+
+	function(x, V_metadata, match_attr = NULL, V_match_attr = 'name', reassign = T)
 	{
-		if(is.null(match.attr)) {
-			match.attr <- names(V_metadata)[1]
+	  calls.src <- sys.calls()
+	  calls.list <- lapply(calls.src, deparse)
+	  call.found <- F
+	  call.search.pos <- length(calls.list) + 1
+	  while(!call.found) {
+	    call.search.pos <- call.search.pos - 1
+	    call.found <- any(grepl('Vmetadata', calls.list[[call.search.pos]]))
+	  }
+	  
+	  args.src <- rlang::call_args(sys.call(call.search.pos))
+	  obj.src <- if('x'%in%names(args.src)) deparse(args.src[['x']], width.cutoff = 500L) else deparse(args.src[[min(which(names(args.src)==''))]], width.cutoff = 500L)
+	  source.env <- parent.frame()
+	  
+		if(is.null(match_attr)) {
+			match_attr <- names(V_metadata)[1]
 			warning("No column containing vertex names declared, first column of V_metadata is assumed to contain vertex names")
 		}								#Assigns first column of metadata table as matching column if none defined and returns warning. 
-		if(any(duplicated(V_metadata[match.attr]))) stop("Elements of matching column 'match.attr' in must be unique")
-		if(!match.attr%in%names(V_metadata)) stop(paste('Column', match.attr, 'not found in V_metadata'))
+		if(any(duplicated(V_metadata[match_attr]))) stop("Elements of matching column 'match_attr' in must be unique")
+		if(!match_attr%in%names(V_metadata)) stop(paste('Column', match_attr, 'not found in V_metadata'))
 										#Returns error if assigned matching column in met
 
-		if(!all(vertex_attr(network, vertex.match.attr)%in%unlist(V_metadata[match.attr]))) stop('Not all network vertices appear in V_metadata$', match.attr, sep = '')
-		match.vec <- match(vertex_attr(network, vertex.match.attr), V_metadata[[match.attr]])
-		source.env <- parent.frame()
+		if(!all(vertex_attr(x, V_match_attr)%in%unlist(V_metadata[match_attr]))) stop('Not all vertices appear in V_metadata$', match_attr, sep = '')
+		match.vec <- match(vertex_attr(x, V_match_attr), V_metadata[[match_attr]])
 
-		attr.frame <- data.frame(V = vertex_attr(network, 'name'))
+		attr.frame <- data.frame(V = vertex_attr(x, 'name'))
 
-		for(attrib in names(V_metadata)[!names(V_metadata)%in%match.attr]) {
-			network <- set_vertex_attr(network, attrib, value = V_metadata[match.vec, attrib])
+		for(attrib in names(V_metadata)[!names(V_metadata)%in%match_attr]) {
+			x <- set_vertex_attr(x, attrib, value = V_metadata[match.vec, attrib])
 			attr.frame[[attrib]] <- V_metadata[match.vec, attrib]
 		}
-#		browser()
-
+		
 		if(reassign) {
-			assign(as.character(as.list(sys.call())[[2]]),
-				network,
-				source.env
-				)
-			return(attr.frame)
+		  assign(obj.src,	x, source.env)
+			return(as.data.frame(vertex_attr(x)))
 		}
-		return(network)
+		return(x)
 	})
+
+
+
 
 #' @rdname Assign_Vmetadata
 #'
 setMethod('Assign_Vmetadata',
-	signature(network = 'rnetBasic'),
-	function(network, V_metadata, match.attr = NULL, vertex.match.attr = 'name', reassign = T)
+	signature(x = 'rnetBasic'),
+
+	function(x, V_metadata, match_attr = NULL, V_match_attr = 'name', reassign = T)
 	{
-		network@R <- Assign_Vmetadata(network@R, V_metadata, match.attr, vertex.match.attr, F)
-		network@V_metadata <- names(V_metadata)
+	  calls.src <- sys.calls()
+	  calls.list <- lapply(calls.src, deparse)
+	  call.found <- F
+	  call.search.pos <- length(calls.list) + 1
+	  while(!call.found) {
+	    call.search.pos <- call.search.pos - 1
+	    call.found <- any(grepl('Vmetadata', calls.list[[call.search.pos]]))
+	  }
+	  
+	  args.src <- rlang::call_args(sys.call(call.search.pos))
+	  obj.src <- if('x'%in%names(args.src)) deparse(args.src[['x']], width.cutoff = 500L) else deparse(args.src[[min(which(names(args.src)==''))]], width.cutoff = 500L)
+    source.env <- parent.frame()
+    
+	  x@R <- Assign_Vmetadata(x = slot(x, "R"), V_metadata, match_attr, V_match_attr, F)
+		x@V_metadata <- names(V_metadata)
 
 		if(reassign) {
-			assign(as.character(as.list(sys.call())[[2]]),
-				network,
-				parent.frame()
-				)
-			return(as.data.frame(vertex_attr(network@R)))
+		  assign(obj.src,	x, source.env)
+		  return(as.data.frame(vertex_attr(x@R)))
 		}
-		return(network)
-	})
-
-#' @rdname Assign_Vmetadata
-#'
-setMethod('Assign_Vmetadata',
-	signature(network = 'rnetStrata'),
-	function(network, V_metadata, match.attr = NULL, vertex.match.attr = 'name', reassign = T)
-	{
-		network@R <- Assign_Vmetadata(network@R, V_metadata, match.attr, vertex.match.attr, F)
-		network@V_metadata <- names(V_metadata)
-
-		if(reassign) {
-			assign(as.character(as.list(sys.call())[[2]]),
-				network,
-				parent.frame()
-				)
-			return(as.data.frame(vertex_attr(network@R)))
-		}
-		return(network)
+		return(x)
 	})
 
 #' @rdname Assign_Vmetadata
 #'	
 setMethod('Assign_Vmetadata',
-	signature(network = 'rnetMultiStrata'),
-	function(network, V_metadata, match.attr = NULL, vertex.match.attr = 'name', reassign = T)
+	signature(x = 'rnetStrata'),
+
+	function(x, V_metadata, match_attr = NULL, V_match_attr = 'name', reassign = T)
 	{
-	
-		slot(network, "R_Strata") <- lapply(slot(network, "R_Strata"), Assign_Vmetadata, V_metadata, match.attr, vertex.match.attr, reassign = F)
-		
+	  calls.src <- sys.calls()
+	  calls.list <- lapply(calls.src, deparse)
+	  call.found <- F
+	  call.search.pos <- length(calls.list) + 1
+	  while(!call.found) {
+	    call.search.pos <- call.search.pos - 1
+	    call.found <- any(grepl('Vmetadata', calls.list[[call.search.pos]]))
+	  }
+	  
+	  args.src <- rlang::call_args(sys.call(call.search.pos))
+	  obj.src <- if('x'%in%names(args.src)) deparse(args.src[['x']], width.cutoff = 500L) else deparse(args.src[[min(which(names(args.src)==''))]], width.cutoff = 500L)
+	  source.env <- parent.frame()
+	  
+		slot(x, "R_set") <- lapply(slot(x, "R_set"), Assign_Vmetadata, V_metadata, match_attr, V_match_attr, reassign = F)
 		if(reassign) {
-			assign(as.character(as.list(sys.call())[[2]]),
-				network,
-				parent.frame()
-				)
-			return(as.data.frame(vertex_attr(network@R_Strata[[1]]@R)))
+		  assign(obj.src,	x, source.env)
+		  return(as.data.frame(vertex_attr(x@R)))
 		}
-		return(network)
+		return(x)
 	})

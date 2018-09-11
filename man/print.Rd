@@ -3,15 +3,18 @@
 \docType{methods}
 \name{print,rnetBasic-method}
 \alias{print,rnetBasic-method}
+\alias{print,rnetSubset-method}
 \alias{print,rnetStrata-method}
-\alias{print,rnetMultiStrata-method}
+\alias{print,rnet.L1.set-method}
 \title{Print methods of rnet objects.}
 \usage{
 \S4method{print}{rnetBasic}(x)
 
+\S4method{print}{rnetSubset}(x)
+
 \S4method{print}{rnetStrata}(x)
 
-\S4method{print}{rnetMultiStrata}(x)
+\S4method{print}{rnet.L1.set}(x)
 }
 \arguments{
 \item{x}{An rnet object}
