@@ -26,3 +26,6 @@
     + Added graph.layout argument to plot method to allow manual definition of graph layout.
     + Added summary method for Rnet objects with multiple strata
     
+* 1.0.3
+    + Fixed error with Assign_Vmetadata.RnetStrata and Assign_Emetadata.RnetStrata. Courtesy return when reassign == TRUE was calling slot R which does nto exist in RnetStrata objects.
+    

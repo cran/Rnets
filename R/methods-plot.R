@@ -43,67 +43,68 @@
 #' plot_call_metadata <- plot(R_EC_08, vertex.frame.color = NA, vertex.color = c('red', 'green'))
 #' plot_call_metadata
 
-setMethod('plot',
-	signature(x = 'rnetBasic'),
-	function (x, draw_plot = TRUE, ...) {
-		VERT.PARAMS <- c('size','size2','color','frame.color','shape','label','label.family','label.font','label.cex','label.dist','label.degree','label.color')
-		EDGE.PARAMS <- c('color','width','lty','label','label.family','label.font','label.cex','label.color','label.x','label.y','curved')
+setMethod(
+  f = 'plot',
+  signature = signature(x = 'rnetBasic'),
+  function (x, draw_plot = TRUE, ...) {
+    VERT.PARAMS <- c('size','size2','color','frame.color','shape','label','label.family','label.font','label.cex','label.dist','label.degree','label.color')
+    EDGE.PARAMS <- c('color','width','lty','label','label.family','label.font','label.cex','label.color','label.x','label.y','curved')
     OTHER.PARAMS <- c('axes', 'add', 'xlim', 'ylim', 'mark.groups', 'mark.shape', 'mark.col', 'mark.border', 'mark.expand')
     
-		OPEN.ARGS <- list(...)
-		OPEN.PARAMS <- names(OPEN.ARGS)
-		
-		calls.src <- sys.calls()
-		calls.list <- lapply(calls.src, deparse)
-		call.found <- F
-		call.search.pos <- length(calls.list) + 1
-		while(!call.found) {
-		  call.search.pos <- call.search.pos - 1
-		  call.found <- any(grepl('plot', calls.list[[call.search.pos]]))
-		}
-		
-		args.src <- rlang::call_args(sys.call(call.search.pos))
-		
-		obj.src <- if('x'%in%names(args.src)) deparse(args.src[['x']], width.cutoff = 500L) else deparse(args.src[[min(which(names(args.src)==''))]], width.cutoff = 500L)
-
-		plot.args <- character(0)
-		for(i in VERT.PARAMS) {
-		  param.name <- paste('vertex',i, sep = '.')
-  	  if(param.name%in% OPEN.PARAMS) {
-		    plot.args <- c(plot.args, paste(param.name, '=', deparse(args.src[[param.name]], width.cutoff = 500L)))
-		    
-		  } else if(param.name%in% vertex_attr_names(x@R)) {
-		    plot.args <- c(plot.args, paste(param.name, ' = ', obj.src, '@', param.name, sep = ''))
-		    
-		  } else if(i%in%vertex_attr_names(x@R)) {
-		    plot.args <- c(plot.args, paste(param.name, ' = V(', obj.src, '@R)$', i, sep = ''))
-		  }
-		}
-
-		for(i in EDGE.PARAMS) {
-		  param.name <- paste('edge', i, sep = '.')
-		  if(param.name%in% OPEN.PARAMS) {
-		    plot.args <- c(plot.args, paste(param.name, '=', deparse(args.src[[param.name]], width.cutoff = 500L)))
-		    
-		  } else if(param.name%in% vertex_attr_names(x@R)) {
-		    plot.args <- c(plot.args, paste(param.name, ' = ', obj.src, '@', param.name, sep = ''))
-		    
-		  } else if(i%in%vertex_attr_names(x@R)) {
-		    plot.args <- c(plot.args, paste(param.name, ' = E(', obj.src, '@R)$', i, sep = ''))
-		  }
-		}
-		
-		for(i in OTHER.PARAMS) if(i%in%OPEN.PARAMS) plot.args <- c(plot.args, paste(i, "=", deparse(args.src[[i]], width.cutoff = 500L)))
-
-		if('layout'%in%OPEN.PARAMS) plot.args <- c(plot.args, paste('layout = ', deparse(args.src$layout, width.cutoff = 500L))) else plot.args <- c(plot.args, paste('layout = x@layout', sep = ''))
-
-		call.int <- paste('plot.igraph(x@R, ', paste(plot.args, collapse = ', '), ')', sep = '')
-
-		if(draw_plot) eval(parse(text = call.int))
-		call.ext <- gsub('x@', paste(obj.src, '@', sep = ''), call.int)
-		invisible(call.ext)
-	})
-
+    OPEN.ARGS <- list(...)
+    OPEN.PARAMS <- names(OPEN.ARGS)
+    
+    calls.src <- sys.calls()
+    calls.list <- lapply(calls.src, deparse)
+    call.found <- F
+    call.search.pos <- length(calls.list) + 1
+    while(!call.found) {
+      call.search.pos <- call.search.pos - 1
+      call.found <- any(grepl('plot', calls.list[[call.search.pos]]))
+    }
+    args.src <- call_args(sys.call(call.search.pos))
+    
+    #args.src <- rlang::call_args(sys.call(call.search.pos))
+    
+    obj.src <- if('x'%in%names(args.src)) deparse(args.src[['x']], width.cutoff = 500L) else deparse(args.src[[min(which(names(args.src)==''))]], width.cutoff = 500L)
+    
+    plot.args <- character(0)
+    for(i in VERT.PARAMS) {
+      param.name <- paste('vertex',i, sep = '.')
+      if(param.name%in% OPEN.PARAMS) {
+        plot.args <- c(plot.args, paste(param.name, '=', deparse(args.src[[param.name]], width.cutoff = 500L)))
+        
+      } else if(param.name%in% vertex_attr_names(x@R)) {
+        plot.args <- c(plot.args, paste(param.name, ' = ', obj.src, '@', param.name, sep = ''))
+        
+      } else if(i%in%vertex_attr_names(x@R)) {
+        plot.args <- c(plot.args, paste(param.name, ' = V(', obj.src, '@R)$', i, sep = ''))
+      }
+    }
+    
+    for(i in EDGE.PARAMS) {
+      param.name <- paste('edge', i, sep = '.')
+      if(param.name%in% OPEN.PARAMS) {
+        plot.args <- c(plot.args, paste(param.name, '=', deparse(args.src[[param.name]], width.cutoff = 500L)))
+        
+      } else if(param.name%in% vertex_attr_names(x@R)) {
+        plot.args <- c(plot.args, paste(param.name, ' = ', obj.src, '@', param.name, sep = ''))
+        
+      } else if(i%in%vertex_attr_names(x@R)) {
+        plot.args <- c(plot.args, paste(param.name, ' = E(', obj.src, '@R)$', i, sep = ''))
+      }
+    }
+    
+    for(i in OTHER.PARAMS) if(i%in%OPEN.PARAMS) plot.args <- c(plot.args, paste(i, "=", deparse(args.src[[i]], width.cutoff = 500L)))
+    
+    if('layout'%in%OPEN.PARAMS) plot.args <- c(plot.args, paste('layout = ', deparse(args.src$layout, width.cutoff = 500L))) else plot.args <- c(plot.args, paste('layout = x@layout', sep = ''))
+    
+    call.int <- paste('plot.igraph(x@R, ', paste(plot.args, collapse = ', '), ')', sep = '')
+    
+    if(draw_plot) eval(parse(text = call.int))
+    call.ext <- gsub('x@', paste(obj.src, '@', sep = ''), call.int)
+    invisible(call.ext)
+  })
 
 
 #' Hidden function for assigning layout matrix
@@ -159,4 +160,101 @@ image.edge_heatmap <- function(x, axes = T, ...)
   }  
 }
 
+#' plot() method for summarizing L1 StARS section objects 
+#' 
+#' @param x An rnet.L1.set object
+#' @param ylim plot(ylim) for stability plot
+#' @param ylim_m plot(ylim) for density plot
+#' @param col plot(col) for stability plot
+#' @param col_m plot(col) for density plot#' 
+#' @param lty plot(lty) for stability plot
+#' @param lty_m plot(lty) for density plot, defaults to lty
+#' @param lwd plot(lwd) for stability plot
+#' @param lwd_m plot(lwd) for density plot, defaults to lwd
+#' @param mar margins for plot.
+#' @param ... Other arguments passed to plot
+#' @rdname plot-rnet.L1.set
+#' @import graphics
+#' @aliases plot.rnet.L1.set
+#' @export
+#' 
+#' 
+#' 
 
+setMethod(
+  'plot',
+  signature(x = 'rnet.L1.set'),
+  function (
+    x, 
+    ylim = c(0, 0.25), 
+    ylim_m = c(0, 0.5),
+    col = 'blue',
+    col_m = 'red',
+    lty = 1,
+    lty_m = NULL,
+    lwd = 2,
+    lwd_m = NULL,
+    mar = c(5, 4, 4, 4),
+    ...
+  ) {
+    if(is.null(lty_m)) lty_m <- lty
+    if(is.null(lwd_m)) lwd_m <- lwd
+    
+    par(mar = mar)
+    plot(
+      x = as.numeric(names(x@D)),
+      y = x@D,
+      xlim = c(0, max(as.numeric(names(x@D)))),
+      ylim = ylim,
+      xlab = expression(L[1]),
+      ylab = expression("Stability "(D[b])),
+      col = col,
+      axes = F,
+      ...
+      )
+    
+    lines(
+      x = as.numeric(names(x@D)),
+      y = x@D,
+      xlim = c(0, max(as.numeric(names(x@D)))),
+      col = col,
+      ylim = ylim,
+      lty = lty,
+      lwd = lwd
+      )
+    
+    abline(h = x@D_thresh, lty = 2, lwd = 2, col = 'darkgrey')
+    
+    axis(1)
+    axis(2)
+    par(new = T)
+    
+    plot(
+      x = as.numeric(names(x@D)),
+      y = aggregate(m/choose(dim(x@W_aggr)[[1]],2) ~ L1, data =  x@M, FUN = mean)[,2],
+      xlim = c(0, max(as.numeric(names(x@D)))),
+      ylim = ylim_m,
+      xlab = expression(L[1]),
+      ylab = '',
+      axes = F,
+      col = col_m,
+      type = 'l',
+      lwd = lwd
+      )
+    
+    axis(4)
+    mtext(
+      text = expression(bar(m)),
+      side = 4,
+      line = 3
+      )
+    
+    legend(
+      x = 'topright',
+      legend = c('Stability (D_b)', 'Mean Density (m-bar)'),
+      col = c(col, col_m),
+      lty = lty,
+      lwd = lwd
+      )
+    
+  })

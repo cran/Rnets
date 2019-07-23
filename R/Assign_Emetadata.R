@@ -142,7 +142,7 @@ setMethod('Assign_Emetadata',
 		
 		if(reassign){
 		  assign(obj.src,	x, source.env)
-		  return(as.data.frame(edge_attr(x@R)))
+		  message('Edge attributes assigned to original stratified R-net object')
 		}
 		return(x) 
 	})

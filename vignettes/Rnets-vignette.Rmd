@@ -69,7 +69,7 @@ Several methods have been proposed to select the 'appropriate' L~1~ penalty, rep
 `L1Selection` defaults to a subsample size `n_b` of half the dataset, but smaller subsamples are typically appropriate. Liu, Roeder, and Wasserman suggest $n_b = 10\sqrt{n}$. `n_b` can be set to a proportion of the sample size by setting `n_b < 1` or as a set number of individuals with `1 < n_b < n`.
 
 ```{r}
-EC_all_L1Selection <- L1Selection(
+EC_all_L1Selection <- Rnets::L1Selection(
             x = NARMS_EC_DATA, 
             L1_values = seq(0.05, 0.45, 0.05),
             n_b = 1500,

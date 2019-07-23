@@ -140,7 +140,7 @@ setMethod(f = 'summary',
             }
           
           max.loc <- which(object@D == max(object@D))
-          under.crit.loc <- which(object@D < 0.05)
+          under.crit.loc <- which(object@D < object@D_thresh)
           suggest.L1 <- names(under.crit.loc[min(which(under.crit.loc >= max.loc))] )  
           
           print(object)
@@ -148,3 +148,49 @@ setMethod(f = 'summary',
           print(E.table)
           cat(E.max.str, '\n')
           })
+
+
+
+#'Summary - MRF comparison with Hotellings T2
+#'
+#'Displays crude and adjusted T2 statistics in addition to comparison of the edges in two MRFs
+#' @param object an object of class 'mrf_t2'
+#' 
+#' @rdname summary-mrf_t2
+#' 
+#setMethod(
+#  f = 'summary',
+#  signature(object = 'mrf_t2'),
+#  function(object) {
+summary.mrf_t2 <- function(object) {
+    cat(
+      "\nMRF Hotellings's T2 Comparison\n\nCrude\nT2 = ", object$crude$statistic, "; p-val = ", object$crude$p.val,
+      " (df1 = ", object$crude$parameter[1], ", df2 = ", object$crude$parameter[2],
+      ")\n\n Adjusted\nT2 = ", object$adj$T2, "; p-val = ", object$adj$pval,
+      " (df1 = ", object$adj$df1, ", df2 = ", object$adj$df2, ")\n\n Pair-wise Edge Tests\n",
+      sep = ''
+      )
+  
+    p.vec <- paste(
+      round(object$t_table$p, 2), 
+      cut(object$t_table$p, breaks = c(0, 0.01, 0.05, 0.1, 1.01), labels = c('**', '* ', ". ", '  '), include.lowest = T),
+      sep = ''
+      )
+  
+    output.frame <- data.frame(
+      X_bar = round(object$t_table$X_bar,3),
+      Y_bar = round(object$t_table$Y_bar,3),
+      d_bar = round(object$t_table$d_bar,3),
+      var_X = round(object$t_table$var_X,4),
+      var_Y = round(object$t_table$var_Y,4),
+      t_c = round(object$t_table$t_c,2),
+      p = p.vec
+      )
+    
+    print(x = output.frame)
+    return(output.frame)
+    #cat("Signif. codes:  0 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n")
+    
+  }
+
+

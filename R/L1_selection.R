@@ -11,6 +11,7 @@
 #' @param cor_pairing The method used to determine how NAs are handled when determining which pairs are used to estimate correlations. See 'cor' function documentation for additional information.
 #' @param subset The rule for stratifying the data, if desired. 
 #' @param forced_zeros Edges to be omitted from the Rnet.
+#' @param D_thresh Maximum tolerated D value. Suggested D_thresh = 0.05.
 #' @param verbose Logical that tells the function to list progress in estimating Rnets from subsets.
 #' @return A vector of D statistics, corresponding the tested L1 values.
 #' @import igraph 
@@ -40,6 +41,7 @@ setGeneric('L1Selection',
 		cor_pairing = 'pair',
 		forced_zeros = NULL,
 		subset = NULL,
+		D_thresh =0.05,
 		verbose = TRUE
 		)
 	{
@@ -74,7 +76,7 @@ setGeneric('L1Selection',
 			x_b[,,b] <- as.matrix(x[sets_b[,b],vertices])
 			L1_n <- 1
 			m_i <- 1
-      if(!b%%10 & verbose) cat(b, 'simulations completed,', proc.time()[3] - t_0, 'seconds elapsed.\n')
+      if(!b%%10 & verbose) message(b, ' simulations completed, ', proc.time()[3] - t_0, ' seconds elapsed.')
 			while(m_i > 0 & L1_n <= L1_N) {
 			  ti_0 <- proc.time()[3]
 				R_i <- Rnet(
@@ -99,8 +101,19 @@ setGeneric('L1Selection',
 						E = paste(E_i[,1], E_i[,2], sep = '--'),
 						omega = E(R_i@R)$omega
 						)
+					
 					M[iter,] <- c(b, L1_values[L1_n], proc.time()[3] - ti_0, ecount(R_i@R))
-					W_aggr[,,b, as.character(L1_values[L1_n])] <- R_i@Omega
+					
+					if(dim(R_i@Omega)[1] == dim(W_aggr)[1]) {
+					  
+					  W_aggr[,,b, as.character(L1_values[L1_n])] <- R_i@Omega 
+					
+					} else {
+					  
+					  pair_set <- t(combn(colnames(W_aggr), 2))
+					  for(pos in 1:dim(pair_set)[1]) if(pair_set[pos, 1]%in%colnames(R_i@Omega) & pair_set[pos, 2]%in%colnames(R_i@Omega)) W_aggr[pair_set[pos, 1], pair_set[pos, 2], b, as.character(L1_values[L1_n])] <- W_aggr[pair_set[pos, 2], pair_set[pos, 1], b, as.character(L1_values[L1_n])] <- R_i@Omega[pair_set[pos, 1], pair_set[pos, 2]]
+
+					}
 					iter <- iter + 1
 					L1_n <- L1_n + 1
 				}
@@ -113,7 +126,9 @@ setGeneric('L1Selection',
 		StARS <- aggregate(Eta ~ L1, Comp_Stab, FUN = sum)
 		StARS.vec <- StARS$Eta
 		names(StARS.vec) <- StARS$L1
-		cat('\nL1Selection completed ', iter - 1, ' loops over ', B,  ' subsets. (', round(sum(M$t), 0), 's elapsed).\n', sep = '')
+		message('\nL1Selection completed ', iter - 1, ' loops over ', B,  ' subsets. (', round(sum(M$t), 0), 's elapsed).', sep = '')
+		
+		if(min(StARS.vec) > D_thresh) warning('No D values below suggested threshold of ', D_thresh)
 		
 		return(new('rnet.L1.set',
 			x = x,
@@ -128,7 +143,8 @@ setGeneric('L1Selection',
 			E_aggr = E_aggr,
 			M = M,
 			stability = Comp_Stab,
-			D = StARS.vec
+			D = StARS.vec,
+			D_thresh = D_thresh
 			))
 	})
 

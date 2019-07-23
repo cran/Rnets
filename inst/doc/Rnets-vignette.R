@@ -5,7 +5,7 @@ library(Rnets)
 ABX_LIST <- c('AMC', 'AXO', 'TIO', 'CIP', 'TET', 'STR', 'GEN', 'CHL', 'AZI')
 
 ## ------------------------------------------------------------------------
-EC_all_L1Selection <- L1Selection(
+EC_all_L1Selection <- Rnets::L1Selection(
             x = NARMS_EC_DATA, 
             L1_values = seq(0.05, 0.45, 0.05),
             n_b = 1500,

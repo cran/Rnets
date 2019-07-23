@@ -31,15 +31,15 @@ See "L1_selection" documentation for more information.
 
 \item{\code{x}}{A dataframe containing the dataset}
 
-\item{\code{L1_set}}{a numeric vector containing the candidate L1 penalties}
+\item{\code{L1_values}}{a numeric vector containing the candidate L1 penalties}
 
 \item{\code{B}}{The number of subsamples to draw from the data to evaluate topologic stability}
 
-\item{\code{B_method}}{Assigned either "proportionate" or "Total number" depending on how subsample size is determined.}
+\item{\code{method_b}}{Assigned either "proportionate" or "Total number" depending on how subsample size is determined.}
 
-\item{\code{B_sets}}{A matrix (n_B x B) containing the rownumbers of the subsamples}
+\item{\code{sets_b}}{A matrix (n_B x B) containing the rownumbers of the subsamples}
 
-\item{\code{Data_b}}{An arrary (n_b x k x B) containing the data from the B_sets matrix}
+\item{\code{array_b}}{An arrary (n_b x k x B) containing the data from the B_sets matrix}
 
 \item{\code{pr_b}}{The size of the subsample B as a proportion of the complete dataset}
 
@@ -51,8 +51,10 @@ See "L1_selection" documentation for more information.
 
 \item{\code{M}}{A dataframe with with graphical density data over the set of generated networks.}
 
-\item{\code{Edge_stability}}{A dataframe showing edge stability over the set of generated networks.}
+\item{\code{stability}}{A dataframe showing edge stability over the set of generated networks.}
 
-\item{\code{StARS_D}}{A vector of D_b values used for L1 selection.}
+\item{\code{D}}{A vector of D_b values used for L1 selection.}
+
+\item{\code{D_thresh}}{The suggested maximum D value for selection.}
 }}
 

@@ -144,11 +144,10 @@ setMethod('Assign_Vmetadata',
 	  args.src <- rlang::call_args(sys.call(call.search.pos))
 	  obj.src <- if('x'%in%names(args.src)) deparse(args.src[['x']], width.cutoff = 500L) else deparse(args.src[[min(which(names(args.src)==''))]], width.cutoff = 500L)
 	  source.env <- parent.frame()
-	  
 		slot(x, "R_set") <- lapply(slot(x, "R_set"), Assign_Vmetadata, V_metadata, match_attr, V_match_attr, reassign = F)
 		if(reassign) {
 		  assign(obj.src,	x, source.env)
-		  return(as.data.frame(vertex_attr(x@R)))
+		  message('Vertex attributes assigned to original stratified R-net object')
 		}
 		return(x)
 	})

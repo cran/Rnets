@@ -6,7 +6,8 @@
 \usage{
 L1Selection(x, L1_values, B = 100, n_b = 0.5, vertices = NULL,
   n_min = 1, cor_method = "s", cor_pairing = "pair",
-  forced_zeros = NULL, subset = NULL, verbose = TRUE)
+  forced_zeros = NULL, subset = NULL, D_thresh = 0.05,
+  verbose = TRUE)
 }
 \arguments{
 \item{x}{The dataset containing the MICs}
@@ -28,6 +29,8 @@ L1Selection(x, L1_values, B = 100, n_b = 0.5, vertices = NULL,
 \item{forced_zeros}{Edges to be omitted from the Rnet.}
 
 \item{subset}{The rule for stratifying the data, if desired.}
+
+\item{D_thresh}{Maximum tolerated D value. Suggested D_thresh = 0.05.}
 
 \item{verbose}{Logical that tells the function to list progress in estimating Rnets from subsets.}
 }
